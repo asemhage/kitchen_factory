@@ -2396,8 +2396,8 @@ def require_showroom_access(f):
         if not showroom_id:
             return f(*args, **kwargs)
         
-        # المدير ومسؤول الإنتاج لهم صلاحية كل الصالات
-        if current_user.role in ['مدير', 'مسؤول إنتاج']:
+        # المدير ومسؤول الإنتاج ومسؤول العمليات ومسؤول المخزن لهم صلاحية كل الصالات
+        if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات', 'مسؤول مخزن']:
             return f(*args, **kwargs)
         
         # موظف بصالة محددة
@@ -2422,8 +2422,8 @@ def get_user_showroom_id():
     if not current_user.is_authenticated:
         return None
     
-    # المدير ومسؤول الإنتاج: استخدم الفلتر المختار
-    if current_user.role in ['مدير', 'مسؤول إنتاج']:
+    # المدير ومسؤول الإنتاج ومسؤول العمليات ومسؤول المخزن: استخدم الفلتر المختار
+    if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات', 'مسؤول مخزن']:
         showroom_filter = session.get('showroom_filter')
         if showroom_filter and showroom_filter != 'all':
             try:
@@ -2455,7 +2455,7 @@ def get_all_showrooms():
     - المدير ومسؤول الإنتاج: جميع الصالات
     - باقي الموظفين: صالتهم فقط
     """
-    if current_user.is_authenticated and current_user.role in ['مدير', 'مسؤول إنتاج']:
+    if current_user.is_authenticated and current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات', 'مسؤول مخزن']:
         return Showroom.query.filter_by(is_active=True).all()
     elif current_user.is_authenticated and current_user.showroom_id:
         return [current_user.showroom]
