@@ -1,0 +1,33 @@
+# ملف systemd service لتشغيل التطبيق تلقائياً
+# ضع هذا الملف في: /etc/systemd/system/kitchen_factory.service
+
+[Unit]
+Description=Kitchen Factory Management System
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/kitchen_factory/kitchen_factory
+Environment="PATH=/var/www/kitchen_factory/kitchen_factory/venv/bin"
+Environment="LANG=ar_SA.UTF-8"
+Environment="LC_ALL=ar_SA.UTF-8"
+Environment="FLASK_ENV=production"
+
+# استخدام gunicorn للإنتاج
+ExecStart=/var/www/kitchen_factory/kitchen_factory/venv/bin/gunicorn -w 4 -b 0.0.0.0:4012 --timeout 120 app:app
+
+# أو استخدام Python مباشرة
+# ExecStart=/var/www/kitchen_factory/kitchen_factory/venv/bin/python app.py
+
+Restart=always
+RestartSec=10
+
+# السجلات
+StandardOutput=append:/var/log/kitchen_factory/output.log
+StandardError=append:/var/log/kitchen_factory/error.log
+
+[Install]
+WantedBy=multi-user.target
+

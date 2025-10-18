@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل الفاتورة - {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- العنوان -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-file-invoice"></i> تفاصيل الفاتورة: {{ invoice.invoice_number }}</h2>
+        </div>
+        <div class="col-md-4 text-right">
+            {% if invoice.status == 'paid' %}
+                <span class="badge badge-success" style="font-size: 1.2em;">مدفوعة بالكامل</span>
+            {% elif invoice.status == 'partial' %}
+                <span class="badge badge-warning" style="font-size: 1.2em;">مدفوعة جزئياً</span>
+            {% elif invoice.status == 'cancelled' %}
+                <span class="badge badge-danger" style="font-size: 1.2em;">ملغاة</span>
+            {% else %}
+                <span class="badge badge-secondary" style="font-size: 1.2em;">مفتوحة</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- معلومات الفاتورة والمورد -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-info-circle"></i> معلومات الفاتورة</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">رقم الفاتورة:</th>
+                            <td>{{ invoice.invoice_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>تاريخ الفاتورة:</th>
+                            <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+                        </tr>
+                        <tr>
+                            <th>تاريخ الاستحقاق:</th>
+                            <td>
+                                {% if invoice.due_date %}
+                                    {{ invoice.due_date.strftime('%Y-%m-%d') }}
+                                    {% if invoice.due_date < now().date() and invoice.status != 'paid' %}
+                                        <span class="badge badge-danger">متأخر</span>
+                                    {% endif %}
+                                {% else %}
+                                    غير محدد
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>أضيفت بواسطة:</th>
+                            <td>{{ invoice.created_by }}</td>
+                        </tr>
+                        <tr>
+                            <th>تاريخ الإضافة:</th>
+                            <td>{{ invoice.created_at.strftime('%Y-%m-%d %H:%M') if invoice.created_at else '-' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-truck"></i> معلومات المورد</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">اسم المورد:</th>
+                            <td>
+                                <a href="{{ url_for('supplier_detail', supplier_id=invoice.supplier.id) }}">
+                                    {{ invoice.supplier.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>الهاتف:</th>
+                            <td>{{ invoice.supplier.phone or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>البريد الإلكتروني:</th>
+                            <td>{{ invoice.supplier.email or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>شخص الاتصال:</th>
+                            <td>{{ invoice.supplier.contact_person or '-' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- المواد المشتراة -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="fas fa-boxes"></i> المواد المشتراة ({{ stats.total_items }})</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>المادة</th>
+                                <th>الوحدة</th>
+                                <th>الكمية</th>
+                                <th>سعر الشراء</th>
+                                <th>المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in invoice.items %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ item.material.name }}</td>
+                                <td>{{ item.material.unit }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ "%.2f"|format(item.purchase_price) }} د.ل</td>
+                                <td><strong>{{ "%.2f"|format(item.line_total) }} د.ل</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-secondary">
+                            <tr>
+                                <th colspan="5" class="text-right">الإجمالي:</th>
+                                <th>{{ "%.2f"|format(stats.total_amount) }} د.ل</th>
+                            </tr>
+                            {% if stats.discount > 0 %}
+                            <tr>
+                                <th colspan="5" class="text-right">الخصم:</th>
+                                <th class="text-danger">-{{ "%.2f"|format(stats.discount) }} د.ل</th>
+                            </tr>
+                            {% endif %}
+                            {% if stats.tax > 0 %}
+                            <tr>
+                                <th colspan="5" class="text-right">الضريبة:</th>
+                                <th class="text-success">+{{ "%.2f"|format(stats.tax) }} د.ل</th>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-primary">
+                                <th colspan="5" class="text-right">المبلغ النهائي:</th>
+                                <th><strong>{{ "%.2f"|format(stats.final_amount) }} د.ل</strong></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ملخص الدفعات -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5><i class="fas fa-money-bill-wave"></i> ملخص الدفعات ({{ stats.payment_count }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="alert alert-info">
+                                <strong>المبلغ الكلي:</strong> {{ "%.2f"|format(stats.final_amount) }} د.ل
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="alert alert-success">
+                                <strong>المدفوع:</strong> {{ "%.2f"|format(stats.paid_amount) }} د.ل
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="alert alert-warning">
+                                <strong>المتبقي:</strong> {{ "%.2f"|format(stats.remaining_amount) }} د.ل
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if invoice.payments %}
+                    <table class="table table-striped">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>التاريخ</th>
+                                <th>المبلغ</th>
+                                <th>طريقة الدفع</th>
+                                <th>رقم المرجع</th>
+                                <th>المسجل بواسطة</th>
+                                <th>ملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in invoice.payments %}
+                            {% if payment.is_active %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ payment.payment_date.strftime('%Y-%m-%d') }}</td>
+                                <td><strong class="text-success">{{ "%.2f"|format(payment.amount) }} د.ل</strong></td>
+                                <td>{{ payment.payment_method }}</td>
+                                <td>{{ payment.reference_number or '-' }}</td>
+                                <td>{{ payment.paid_by }}</td>
+                                <td>{{ payment.notes or '-' }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted text-center">لا توجد دفعات مسجلة</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ملاحظات -->
+    {% if invoice.notes %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-sticky-note"></i> ملاحظات</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ invoice.notes }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- الإجراءات -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            {% if invoice.status != 'cancelled' and invoice.amount_paid == 0 %}
+            <a href="{{ url_for('edit_invoice', invoice_id=invoice.id) }}" class="btn btn-warning btn-lg">
+                <i class="fas fa-edit"></i> تعديل الفاتورة
+            </a>
+            {% endif %}
+            
+            {% if invoice.status != 'cancelled' and stats.remaining_amount > 0 %}
+            <a href="{{ url_for('add_invoice_payment', invoice_id=invoice.id) }}" class="btn btn-success btn-lg">
+                <i class="fas fa-money-bill-wave"></i> تسجيل دفعة
+            </a>
+            {% endif %}
+
+            {% if current_user.role == 'مدير' and invoice.status != 'cancelled' and stats.paid_amount == 0 %}
+            <button type="button" class="btn btn-danger btn-lg" data-toggle="modal" data-target="#cancelModal">
+                <i class="fas fa-ban"></i> إلغاء الفاتورة
+            </button>
+            {% endif %}
+
+            <a href="{{ url_for('invoices_list') }}" class="btn btn-secondary btn-lg">
+                <i class="fas fa-arrow-right"></i> العودة للقائمة
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Modal إلغاء الفاتورة -->
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle"></i> تأكيد إلغاء الفاتورة</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form method="POST" action="{{ url_for('cancel_invoice', invoice_id=invoice.id) }}">
+                <div class="modal-body">
+                    <p><strong>هل أنت متأكد من إلغاء هذه الفاتورة؟</strong></p>
+                    <p class="text-muted">سيتم إرجاع الكميات المضافة من المخزن.</p>
+
+                    <div class="form-group">
+                        <label for="cancellation_reason">سبب الإلغاء:</label>
+                        <textarea class="form-control" id="cancellation_reason" name="cancellation_reason" 
+                                  rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-danger">تأكيد الإلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

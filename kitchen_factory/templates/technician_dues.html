@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}مستحقات الفني - {{ technician.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- معلومات الفني -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">
+                <i class="fas fa-user-hard-hat"></i> مستحقات الفني: {{ technician.name }}
+            </h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <p><strong><i class="fas fa-phone"></i> الهاتف:</strong></p>
+                    <p class="text-muted">{{ technician.phone or 'غير محدد' }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p><strong><i class="fas fa-tools"></i> التخصص:</strong></p>
+                    <p class="text-muted">{{ technician.specialization }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p><strong><i class="fas fa-chart-line"></i> الحالة:</strong></p>
+                    <p>
+                        {% if technician.status == 'نشط' %}
+                            <span class="badge bg-success">{{ technician.status }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ technician.status }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-3">
+                    <p><strong><i class="fas fa-money-bill-wave"></i> إجمالي المستحقات:</strong></p>
+                    <h4 class="text-danger">{{ "{:,.2f}".format(technician.total_dues) }} د.ل</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول المستحقات غير المدفوعة -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-list"></i> المستحقات غير المدفوعة
+                <span class="badge bg-danger ms-2">{{ dues|length }}</span>
+            </h5>
+            {% if dues and current_user.role in ['مدير', 'مسؤول إنتاج'] %}
+            <a href="{{ url_for('pay_technician_dues', technician_id=technician.id) }}" class="btn btn-success">
+                <i class="fas fa-money-check-alt"></i> دفع المستحقات
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if dues %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>الطلبية</th>
+                            <th>المرحلة</th>
+                            <th>النوع</th>
+                            <th>الأمتار</th>
+                            <th>السعر/متر</th>
+                            <th>المبلغ</th>
+                            <th>التاريخ</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set total_amount = namespace(value=0) %}
+                        {% for due in dues %}
+                        {% set total_amount.value = total_amount.value + due.amount %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('order_detail', order_id=due.order_id) }}" class="text-decoration-none">
+                                    <strong>#{{ due.order_id }}</strong>
+                                </a>
+                            </td>
+                            <td>
+                                {% if due.stage %}
+                                    <span class="badge bg-info">{{ due.stage.stage_name }}</span>
+                                {% else %}
+                                    <span class="text-muted">غير محدد</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if due.due_type == 'manufacturing' %}
+                                    <span class="badge bg-primary"><i class="fas fa-industry"></i> تصنيع</span>
+                                {% elif due.due_type == 'installation' %}
+                                    <span class="badge bg-warning text-dark"><i class="fas fa-wrench"></i> تركيب</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ due.due_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if due.meters %}
+                                    <strong>{{ "{:,.2f}".format(due.meters) }}</strong> م
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if due.rate_per_meter %}
+                                    {{ "{:,.2f}".format(due.rate_per_meter) }} د.ل
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong class="text-danger">{{ "{:,.2f}".format(due.amount) }} د.ل</strong>
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="far fa-calendar"></i> 
+                                    {{ due.created_at.strftime('%Y-%m-%d') if due.created_at else '-' }}
+                                </small>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('order_detail', order_id=due.order_id) }}" 
+                                   class="btn btn-sm btn-outline-primary" 
+                                   title="عرض الطلبية">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="5" class="text-end">الإجمالي:</th>
+                            <th>
+                                <h5 class="text-danger mb-0">{{ "{:,.2f}".format(total_amount.value) }} د.ل</h5>
+                            </th>
+                            <th colspan="2"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- ملخص سريع -->
+            <div class="alert alert-info mt-3">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong><i class="fas fa-list-ol"></i> عدد المستحقات:</strong>
+                        <span class="badge bg-primary ms-2">{{ dues|length }}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <strong><i class="fas fa-money-bill-wave"></i> إجمالي المبلغ:</strong>
+                        <span class="text-danger ms-2">{{ "{:,.2f}".format(total_amount.value) }} د.ل</span>
+                    </div>
+                    <div class="col-md-4">
+                        {% if current_user.role in ['مدير', 'مسؤول إنتاج'] %}
+                        <a href="{{ url_for('pay_technician_dues', technician_id=technician.id) }}" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-hand-holding-usd"></i> دفع جميع المستحقات
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% else %}
+            <!-- رسالة عند عدم وجود مستحقات -->
+            <div class="alert alert-success text-center" role="alert">
+                <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                <h5>لا توجد مستحقات غير مدفوعة</h5>
+                <p class="mb-0">جميع مستحقات هذا الفني قد تم دفعها بالكامل</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- سجل الدفعات السابقة -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-history"></i> سجل الدفعات السابقة
+            </h5>
+        </div>
+        <div class="card-body">
+            {% set payments = technician.payments_received|selectattr('is_active')|list %}
+            {% if payments %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>التاريخ</th>
+                            <th>المبلغ</th>
+                            <th>طريقة الدفع</th>
+                            <th>دفع بواسطة</th>
+                            <th>ملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments|sort(attribute='payment_date', reverse=True) %}
+                        {% if loop.index <= 10 %}
+                        <tr>
+                            <td>
+                                <i class="far fa-calendar"></i> 
+                                {{ payment.payment_date.strftime('%Y-%m-%d') }}
+                            </td>
+                            <td>
+                                <strong class="text-success">{{ "{:,.2f}".format(payment.amount) }} د.ل</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ payment.payment_method }}</span>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ payment.paid_by }}</small>
+                            </td>
+                            <td>
+                                <small>{{ payment.notes or '-' }}</small>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th>الإجمالي المدفوع:</th>
+                            <th colspan="4">
+                                <strong class="text-success">
+                                    {{ "{:,.2f}".format(technician.total_paid) }} د.ل
+                                </strong>
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i>
+                لا توجد دفعات سابقة لهذا الفني
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- أزرار التنقل -->
+    <div class="mt-4 mb-5">
+        <a href="{{ url_for('technicians') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i> العودة لقائمة الفنيين
+        </a>
+        <a href="{{ url_for('technician_detail', technician_id=technician.id) }}" class="btn btn-info">
+            <i class="fas fa-user"></i> ملف الفني الكامل
+        </a>
+        {% if current_user.role in ['مدير', 'مسؤول إنتاج'] and dues %}
+        <a href="{{ url_for('pay_technician_dues', technician_id=technician.id) }}" class="btn btn-success">
+            <i class="fas fa-money-check-alt"></i> دفع المستحقات
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, .card-header .btn {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}
+

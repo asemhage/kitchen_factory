@@ -1,0 +1,545 @@
+{% extends 'base.html' %}
+
+{% block title %}الأرشفة الجماعية{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-layer-group text-primary"></i> الأرشفة الجماعية للسجلات</h2>
+                <div class="btn-group">
+                    <a href="{{ url_for('archive_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> العودة للوحة الأرشيف  
+                    </a>
+                    <a href="{{ url_for('archive_search') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> البحث المتقدم
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تحذيرات هامة -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>تحذير هام:</strong> 
+                الأرشفة الجماعية عملية لا يمكن التراجع عنها بسهولة. تأكد من اختيار السجلات الصحيحة قبل التنفيذ.
+            </div>
+        </div>
+    </div>
+
+    <!-- نموذج اختيار نوع البيانات -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-database"></i> اختيار نوع البيانات</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="table_select" class="form-label">نوع البيانات المراد أرشفتها</label>
+                        <select class="form-select" id="table_select" onchange="loadTableData()">
+                            <option value="">اختر نوع البيانات</option>
+                            <option value="orders">الطلبيات</option>
+                            <option value="technician_due">مستحقات الفنيين المدفوعة</option>
+                            <option value="audit_log">سجل التدقيق القديم</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="archive_reason_bulk" class="form-label">سبب الأرشفة الجماعية</label>
+                        <textarea class="form-control" id="archive_reason_bulk" rows="3" 
+                                  placeholder="أدخل سبب الأرشفة الجماعية...">أرشفة جماعية - تنظيف البيانات القديمة</textarea>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" onclick="loadEligibleRecords()" disabled id="load_records_btn">
+                            <i class="fas fa-search"></i> عرض السجلات المؤهلة
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- معايير الأرشفة -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle"></i> معايير الأرشفة</h6>
+                </div>
+                <div class="card-body">
+                    <div id="archive_criteria">
+                        <p class="text-muted">اختر نوع البيانات لعرض المعايير</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-list"></i> السجلات المؤهلة للأرشفة</h5>
+                    <div class="btn-group btn-group-sm" style="display: none;" id="action_buttons">
+                        <button class="btn btn-outline-success" onclick="selectAll()">
+                            <i class="fas fa-check-square"></i> تحديد الكل
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="selectNone()">
+                            <i class="fas fa-square"></i> إلغاء التحديد
+                        </button>
+                        <button class="btn btn-danger" onclick="confirmBulkArchive()" disabled id="archive_btn">
+                            <i class="fas fa-archive"></i> أرشفة المحدد
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="records_container">
+                        <div class="text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">اختر نوع البيانات لعرض السجلات المؤهلة</h5>
+                            <p class="text-muted">
+                                سيتم عرض السجلات التي تطابق معايير الأرشفة المحددة في الإعدادات.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Bulk Archive Confirmation -->
+<div class="modal fade" id="bulkArchiveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تأكيد الأرشفة الجماعية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>تحذير:</strong> هذه العملية لا يمكن التراجع عنها بسهولة!
+                </div>
+                
+                <div id="archive_summary">
+                    <!-- سيتم ملؤها بـ JavaScript -->
+                </div>
+                
+                <form id="bulkArchiveForm" method="POST" action="{{ url_for('bulk_archive') }}">
+                    <input type="hidden" id="selected_table" name="table_name">
+                    <div id="selected_records_inputs">
+                        <!-- سيتم إضافة الحقول المخفية هنا -->
+                    </div>
+                    <input type="hidden" id="bulk_reason" name="archive_reason">
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirm_bulk_archive" required>
+                            <label class="form-check-label" for="confirm_bulk_archive">
+                                أؤكد أنني أريد أرشفة السجلات المحددة وأتحمل المسؤولية الكاملة عن هذا الإجراء
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="submit" form="bulkArchiveForm" class="btn btn-danger">
+                    <i class="fas fa-archive"></i> تأكيد الأرشفة الجماعية
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Loading -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <h5 class="mt-3">جاري تحميل السجلات...</h5>
+                <p class="text-muted">يرجى الانتظار</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTableType = '';
+let eligibleRecords = [];
+
+// معايير الأرشفة لكل نوع جدول
+const archiveCriteria = {
+    'orders': {
+        title: 'الطلبيات',
+        criteria: [
+            'الحالة: مسلّم أو مكتمل',
+            'تاريخ التسليم: أقدم من 90 يوم',
+            'حالة الدفع: مدفوع بالكامل أو لا توجد مطالبات عالقة',
+            'لا توجد مشاكل أو خلافات مفتوحة'
+        ],
+        icon: 'shopping-cart'
+    },
+    'technician_due': {
+        title: 'مستحقات الفنيين',
+        criteria: [
+            'الحالة: مدفوع بالكامل',
+            'تاريخ الدفع: أقدم من 180 يوم',
+            'لا توجد خلافات مع الفني',
+            'تم التحقق من صحة المستحق'
+        ],
+        icon: 'hard-hat'
+    },
+    'audit_log': {
+        title: 'سجل التدقيق',
+        criteria: [
+            'تاريخ الإنشاء: أقدم من 180 يوم',
+            'نوع العملية: ليس من العمليات الحرجة',
+            'لا يتعلق بالأمان أو تسجيل الدخول',
+            'تم الاستعلام عنه بشكل منتظم'
+        ],
+        icon: 'shield-alt'
+    }
+};
+
+function loadTableData() {
+    const tableSelect = document.getElementById('table_select');
+    const loadBtn = document.getElementById('load_records_btn');
+    const archiveCriteriaDiv = document.getElementById('archive_criteria');
+    
+    currentTableType = tableSelect.value;
+    
+    if (currentTableType) {
+        loadBtn.disabled = false;
+        
+        // عرض معايير الأرشفة
+        const criteria = archiveCriteria[currentTableType];
+        let html = `
+            <h6><i class="fas fa-${criteria.icon}"></i> ${criteria.title}</h6>
+            <ul class="list-unstyled">
+        `;
+        
+        criteria.criteria.forEach(criterion => {
+            html += `<li><i class="fas fa-check-circle text-success"></i> ${criterion}</li>`;
+        });
+        
+        html += '</ul>';
+        archiveCriteriaDiv.innerHTML = html;
+        
+        // إعادة تعيين النتائج
+        document.getElementById('records_container').innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">اضغط "عرض السجلات المؤهلة" لتحميل البيانات</h5>
+                <p class="text-muted">سيتم البحث عن السجلات التي تطابق معايير ${criteria.title}</p>
+            </div>
+        `;
+        document.getElementById('action_buttons').style.display = 'none';
+    } else {
+        loadBtn.disabled = true;
+        archiveCriteriaDiv.innerHTML = '<p class="text-muted">اختر نوع البيانات لعرض المعايير</p>';
+        document.getElementById('records_container').innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">اختر نوع البيانات لعرض السجلات المؤهلة</h5>
+            </div>
+        `;
+        document.getElementById('action_buttons').style.display = 'none';
+    }
+}
+
+function loadEligibleRecords() {
+    if (!currentTableType) return;
+    
+    // عرض مودال التحميل
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModal.show();
+    
+    // محاكاة تحميل البيانات (يمكن استبدالها بـ AJAX حقيقي)
+    setTimeout(() => {
+        loadingModal.hide();
+        
+        // بيانات تجريبية - يجب استبدالها بـ API حقيقي
+        eligibleRecords = generateSampleData(currentTableType);
+        displayEligibleRecords(eligibleRecords);
+        
+        document.getElementById('action_buttons').style.display = 'flex';
+    }, 2000);
+}
+
+function generateSampleData(tableType) {
+    // بيانات تجريبية - في التطبيق الحقيقي سيتم جلبها من الخادم
+    const sampleData = {
+        'orders': [
+            { id: 1, customer_name: 'أحمد محمد', total_value: 2500, delivery_date: '2024-01-15', status: 'مسلّم' },
+            { id: 2, customer_name: 'فاطمة علي', total_value: 3200, delivery_date: '2024-02-10', status: 'مسلّم' },
+            { id: 3, customer_name: 'محمد حسن', total_value: 1800, delivery_date: '2024-01-28', status: 'مكتمل' },
+        ],
+        'technician_due': [
+            { id: 1, technician_name: 'علي الفني', amount: 450, paid_date: '2024-01-20', order_id: 15 },
+            { id: 2, technician_name: 'محمد الفني', amount: 680, paid_date: '2024-02-05', order_id: 18 },
+        ],
+        'audit_log': [
+            { id: 100, action: 'عرض طلبية', user: 'admin', created_at: '2024-01-10 14:30:00' },
+            { id: 101, action: 'تعديل مادة', user: 'manager1', created_at: '2024-01-12 09:15:00' },
+            { id: 102, action: 'إضافة عميل', user: 'reception1', created_at: '2024-01-15 11:45:00' },
+        ]
+    };
+    
+    return sampleData[tableType] || [];
+}
+
+function displayEligibleRecords(records) {
+    const container = document.getElementById('records_container');
+    
+    if (records.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-info-circle fa-3x text-info mb-3"></i>
+                <h5 class="text-info">لا توجد سجلات مؤهلة للأرشفة</h5>
+                <p class="text-muted">جميع السجلات من هذا النوع إما محدثة أو مؤرشفة بالفعل.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            تم العثور على <strong>${records.length}</strong> سجل مؤهل للأرشفة.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>
+                            <input type="checkbox" id="selectAllRecords" onchange="toggleAllRecords(this)">
+                        </th>
+    `;
+    
+    // إضافة رؤوس الأعمدة حسب نوع البيانات
+    if (currentTableType === 'orders') {
+        html += `
+                        <th>رقم الطلبية</th>
+                        <th>اسم العميل</th>
+                        <th>القيمة</th>
+                        <th>تاريخ التسليم</th>
+                        <th>الحالة</th>
+        `;
+    } else if (currentTableType === 'technician_due') {
+        html += `
+                        <th>رقم المستحق</th>
+                        <th>الفني</th>
+                        <th>المبلغ</th>
+                        <th>تاريخ الدفع</th>
+                        <th>رقم الطلبية</th>
+        `;
+    } else if (currentTableType === 'audit_log') {
+        html += `
+                        <th>رقم السجل</th>
+                        <th>العملية</th>
+                        <th>المستخدم</th>
+                        <th>التاريخ</th>
+        `;
+    }
+    
+    html += `
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // إضافة صفوف البيانات
+    records.forEach(record => {
+        html += `
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="record-checkbox" value="${record.id}" onchange="updateArchiveButton()">
+                        </td>
+        `;
+        
+        if (currentTableType === 'orders') {
+            html += `
+                        <td><strong># ${record.id}</strong></td>
+                        <td>${record.customer_name}</td>
+                        <td class="text-success">${record.total_value.toLocaleString()} د.ل</td>
+                        <td><small>${record.delivery_date}</small></td>
+                        <td><span class="badge bg-success">${record.status}</span></td>
+            `;
+        } else if (currentTableType === 'technician_due') {
+            html += `
+                        <td><strong># ${record.id}</strong></td>
+                        <td>${record.technician_name}</td>
+                        <td class="text-success">${record.amount} د.ل</td>
+                        <td><small>${record.paid_date}</small></td>
+                        <td># ${record.order_id}</td>
+            `;
+        } else if (currentTableType === 'audit_log') {
+            html += `
+                        <td><strong># ${record.id}</strong></td>
+                        <td>${record.action}</td>
+                        <td>${record.user}</td>
+                        <td><small>${record.created_at}</small></td>
+            `;
+        }
+        
+        html += `
+                    </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function toggleAllRecords(checkbox) {
+    const checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateArchiveButton();
+}
+
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+    document.getElementById('selectAllRecords').checked = true;
+    updateArchiveButton();
+}
+
+function selectNone() {
+    const checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    document.getElementById('selectAllRecords').checked = false;
+    updateArchiveButton();
+}
+
+function updateArchiveButton() {
+    const selectedCount = document.querySelectorAll('.record-checkbox:checked').length;
+    const archiveBtn = document.getElementById('archive_btn');
+    
+    if (selectedCount > 0) {
+        archiveBtn.disabled = false;
+        archiveBtn.innerHTML = `<i class="fas fa-archive"></i> أرشفة المحدد (${selectedCount})`;
+    } else {
+        archiveBtn.disabled = true;
+        archiveBtn.innerHTML = '<i class="fas fa-archive"></i> أرشفة المحدد';
+    }
+}
+
+function confirmBulkArchive() {
+    const selectedCheckboxes = document.querySelectorAll('.record-checkbox:checked');
+    
+    if (selectedCheckboxes.length === 0) {
+        alert('يرجى تحديد سجل واحد على الأقل للأرشفة');
+        return;
+    }
+    
+    // تحضير البيانات للمودال
+    const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    const tableName = currentTableType;
+    const reason = document.getElementById('archive_reason_bulk').value.trim();
+    
+    if (!reason) {
+        alert('يرجى إدخال سبب الأرشفة');
+        document.getElementById('archive_reason_bulk').focus();
+        return;
+    }
+    
+    // ملء مودال التأكيد
+    document.getElementById('selected_table').value = tableName;
+    document.getElementById('bulk_reason').value = reason;
+    
+    // إضافة الحقول المخفية للسجلات المحددة
+    const selectedRecordsInputs = document.getElementById('selected_records_inputs');
+    selectedRecordsInputs.innerHTML = '';
+    selectedIds.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'record_ids';
+        input.value = id;
+        selectedRecordsInputs.appendChild(input);
+    });
+    
+    // ملء ملخص العملية
+    const criteria = archiveCriteria[tableName];
+    document.getElementById('archive_summary').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="fas fa-${criteria.icon}"></i> ${criteria.title}</h6>
+                <p><strong>عدد السجلات المحددة:</strong> ${selectedIds.length}</p>
+                <p><strong>سبب الأرشفة:</strong> ${reason}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>السجلات المحددة:</h6>
+                <div class="bg-light p-2 rounded" style="max-height: 150px; overflow-y: auto;">
+                    ${selectedIds.map(id => `# ${id}`).join(', ')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // عرض مودال التأكيد
+    const modal = new bootstrap.Modal(document.getElementById('bulkArchiveModal'));
+    modal.show();
+}
+
+// تنشيط العناصر عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // تركيز على حقل اختيار نوع البيانات
+    document.getElementById('table_select').focus();
+});
+</script>
+
+<style>
+.record-checkbox, #selectAllRecords {
+    cursor: pointer;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.alert {
+    margin-bottom: 1rem;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.text-primary { color: #0d6efd !important; }
+.text-success { color: #198754 !important; }
+.text-info { color: #0dcaf0 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-danger { color: #dc3545 !important; }
+</style>
+{% endblock %}

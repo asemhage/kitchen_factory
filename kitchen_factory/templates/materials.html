@@ -1,0 +1,261 @@
+
+{% extends "base.html" %}
+
+{% block title %}إدارة المواد - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">إدارة المواد</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('new_material') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-plus"></i> إضافة مادة جديدة
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="mb-0">قائمة المواد</h5>
+            </div>
+            <div class="col-md-6">
+                <form method="GET" action="{{ url_for('materials') }}">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="بحث عن مادة..." name="search" value="{{ request.args.get('search', '') }}">
+                        <button class="btn btn-outline-secondary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="materialsTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>اسم المادة</th>
+                        <th>المخزن</th>
+                        <th>الموقع</th>
+                        <th>الوحدة</th>
+                        <th>الكمية المتاحة</th>
+                        <th>سعر الوحدة</th>
+                        <th>الحالة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for material in materials %}
+                    <tr>
+                        <td>{{ material.name }}</td>
+                        <td>
+                            {% if material.warehouse %}
+                                <span class="badge bg-info">{{ material.warehouse.name }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">غير محدد</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if material.storage_location %}
+                                <small class="text-muted">{{ material.storage_location }}</small>
+                            {% else %}
+                                <small class="text-muted">-</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ material.unit }}</td>
+                        <td>
+                            {{ material.quantity_available }}
+                            {% if material.min_quantity and material.quantity_available <= material.min_quantity %}
+                                <i class="fas fa-exclamation-triangle text-warning" title="أقل من الحد الأدنى"></i>
+                            {% endif %}
+                        </td>
+                                                        <td>{{ material.unit_price }} دينار ليبي</td>
+                        <td>
+                            {% if material.min_quantity and material.quantity_available <= material.min_quantity %}
+                            <span class="badge bg-danger">ينقص</span>
+                            {% elif material.quantity_available < 50 %}
+                            <span class="badge bg-warning text-dark">قليل</span>
+                            {% else %}
+                            <span class="badge bg-success">متوفر</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('edit_material', material_id=material.id) }}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-primary add-stock-btn" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#addStockModal"
+                                        data-id="{{ material.id }}"
+                                        data-name="{{ material.name }}"
+                                        data-quantity="{{ material.quantity_available }}"
+                                        data-unit="{{ material.unit }}">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                {% if current_user.role == 'مدير' %}
+                                <form method="POST" action="{{ url_for('delete_material', material_id=material.id) }}" class="d-inline" onsubmit="return confirm('هل أنت متأكد من حذف هذه المادة؟');">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal لإضافة مخزون -->
+<div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStockModalLabel">إضافة كمية للمخزون</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStockForm">
+                    <div class="mb-3">
+                        <label class="form-label">المادة</label>
+                        <input type="text" class="form-control" id="materialName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">الكمية الحالية</label>
+                        <input type="text" class="form-control" id="currentQuantity" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addQuantity" class="form-label">الكمية المضافة</label>
+                        <input type="number" class="form-control" id="addQuantity" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchDate" class="form-label">تاريخ الدفعة</label>
+                        <input type="date" class="form-control" id="batchDate" required>
+                    </div>
+                    <input type="hidden" id="materialId">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="saveStockBtn">حفظ</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // تعيين تاريخ اليوم كافتراضي لتاريخ الدفعة
+        $('#batchDate').val(new Date().toISOString().split('T')[0]);
+
+        // عند النقر على زر إضافة مخزون
+        $(document).on('click', '.add-stock-btn', function() {
+            console.log('Add stock button clicked');
+            
+            const materialId = $(this).data('id');
+            const materialName = $(this).data('name');
+            const materialQuantity = $(this).data('quantity');
+            const materialUnit = $(this).data('unit');
+            
+            console.log('Data attributes:', {
+                id: materialId,
+                name: materialName,
+                quantity: materialQuantity,
+                unit: materialUnit
+            });
+            
+            // التأكد من وجود القيم
+            if (materialId && materialName && materialQuantity !== undefined && materialUnit) {
+                $('#materialId').val(materialId);
+                $('#materialName').val(materialName);
+                $('#currentQuantity').val(materialQuantity + ' ' + materialUnit);
+                $('#addQuantity').val('');
+                
+                console.log('Form fields updated successfully');
+            } else {
+                console.error('Missing data attributes', {
+                    id: materialId,
+                    name: materialName,
+                    quantity: materialQuantity,
+                    unit: materialUnit
+                });
+                alert('حدث خطأ في قراءة بيانات المادة');
+            }
+        });
+        
+        // تهيئة DataTables بعد تعيين الأحداث
+        $('#materialsTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Arabic.json"
+            }
+        });
+
+        // عند حفظ الكمية المضافة
+        $('#saveStockBtn').click(function() {
+            console.log('Save stock button clicked');
+            
+            const materialId = $('#materialId').val();
+            const quantity = $('#addQuantity').val();
+            const batchDate = $('#batchDate').val();
+            
+            console.log('Form data:', {
+                materialId: materialId,
+                quantity: quantity,
+                batchDate: batchDate
+            });
+
+            if (!quantity || !batchDate) {
+                alert('يرجى إدخال جميع الحقول المطلوبة');
+                return;
+            }
+            
+            if (!materialId) {
+                alert('يرجى اختيار مادة أولاً');
+                return;
+            }
+
+            // إرسال البيانات إلى الخادم
+            $.ajax({
+                url: '/materials/add-stock',
+                type: 'POST',
+                data: {
+                    material_id: materialId,
+                    quantity: quantity,
+                    batch_date: batchDate
+                },
+                success: function(response) {
+                    console.log('Server response:', response);
+                    
+                    if (response.success) {
+                        // إغلاق النافذة المنبثقة
+                        $('#addStockModal').modal('hide');
+
+                        // تحديث الصفحة
+                        location.reload();
+                    } else {
+                        alert('حدث خطأ: ' + (response.message || 'خطأ غير معروف'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX error:', {
+                        xhr: xhr,
+                        status: status,
+                        error: error
+                    });
+                    alert('حدث خطأ في الاتصال بالخادم: ' + error);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

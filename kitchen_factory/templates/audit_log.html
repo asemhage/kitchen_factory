@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}سجل التدقيق - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-history"></i> سجل التدقيق (Audit Log)</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('admin_tools') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- إحصائيات سريعة -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="text-muted">إجمالي السجلات</h6>
+                <h3 class="mb-0">{{ total_logs }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6>سجلات اليوم</h6>
+                <h3 class="mb-0">{{ today_logs }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- فلاتر البحث -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-filter"></i> فلترة النتائج</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('audit_log_list') }}">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="table" class="form-label">الجدول</label>
+                    <select class="form-select" id="table" name="table">
+                        <option value="">الكل</option>
+                        {% for table in all_tables %}
+                        <option value="{{ table }}" {% if filters.table == table %}selected{% endif %}>
+                            {{ table }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="action" class="form-label">العملية</label>
+                    <select class="form-select" id="action" name="action">
+                        <option value="">الكل</option>
+                        {% for action in all_actions %}
+                        <option value="{{ action }}" {% if filters.action == action %}selected{% endif %}>
+                            {{ action }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="user" class="form-label">المستخدم</label>
+                    <input type="text" class="form-control" id="user" name="user" 
+                           value="{{ filters.user }}" placeholder="اسم المستخدم">
+                </div>
+
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">من تاريخ</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" 
+                           value="{{ filters.date_from }}">
+                </div>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">إلى تاريخ</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" 
+                           value="{{ filters.date_to }}">
+                </div>
+
+                <div class="col-md-9 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> بحث
+                    </button>
+                    <a href="{{ url_for('audit_log_list') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> إلغاء الفلترة
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نتائج السجل -->
+{% if logs %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            السجلات 
+            <span class="badge bg-secondary">{{ pagination.total }} سجل</span>
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>الوقت</th>
+                        <th>المستخدم</th>
+                        <th>العملية</th>
+                        <th>الجدول</th>
+                        <th>رقم السجل</th>
+                        <th>الحقل</th>
+                        <th>القيمة القديمة</th>
+                        <th>القيمة الجديدة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ log.user_name or 'نظام' }}</strong>
+                            {% if log.showroom %}
+                            <br><small class="text-muted">{{ log.showroom.name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.action == 'create' %}
+                            <span class="badge bg-success">إنشاء</span>
+                            {% elif log.action == 'update' %}
+                            <span class="badge bg-warning">تحديث</span>
+                            {% elif log.action == 'delete' %}
+                            <span class="badge bg-danger">حذف</span>
+                            {% elif log.action == 'cancel' %}
+                            <span class="badge bg-secondary">إلغاء</span>
+                            {% else %}
+                            <span class="badge bg-info">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ log.table_name }}</code></td>
+                        <td>{{ log.record_id }}</td>
+                        <td>{{ log.field_name or '-' }}</td>
+                        <td>
+                            <small class="text-muted">
+                                {{ log.old_value|truncate(30) if log.old_value else '-' }}
+                            </small>
+                        </td>
+                        <td>
+                            <small>
+                                {{ log.new_value|truncate(30) if log.new_value else '-' }}
+                            </small>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('audit_log_detail', log_id=log.id) }}" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav>
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('audit_log_list', page=pagination.prev_num, **filters) }}">السابق</a>
+                </li>
+                
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('audit_log_list', page=page_num, **filters) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('audit_log_list', page=pagination.next_num, **filters) }}">التالي</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> لا توجد سجلات تطابق معايير البحث.
+</div>
+{% endif %}
+
+{% endblock %}
+

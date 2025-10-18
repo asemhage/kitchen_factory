@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل المورد: {{ supplier.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-truck"></i> {{ supplier.name }}</h2>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">لوحة التحكم</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('suppliers_list') }}">الموردين</a></li>
+                            <li class="breadcrumb-item active">{{ supplier.name }}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    {% if current_user.role in ['مدير', 'مسؤول العمليات'] %}
+                    <a href="{{ url_for('edit_supplier', supplier_id=supplier.id) }}" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> تعديل
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('suppliers_list') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-right"></i> رجوع
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h6><i class="fas fa-file-invoice"></i> إجمالي الفواتير</h6>
+                    <h3>{{ stats.total_invoices }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h6><i class="fas fa-dollar-sign"></i> إجمالي المبالغ</h6>
+                    <h3>{{ "%.2f"|format(stats.total_amount) }}</h3>
+                    <small>دينار ليبي</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h6><i class="fas fa-check-circle"></i> المبالغ المدفوعة</h6>
+                    <h3>{{ "%.2f"|format(stats.total_paid) }}</h3>
+                    <small>دينار ليبي</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h6><i class="fas fa-exclamation-triangle"></i> المتبقي</h6>
+                    <h3>{{ "%.2f"|format(stats.total_remaining) }}</h3>
+                    <small>دينار ليبي</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات المورد -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> معلومات المورد</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%"><i class="fas fa-barcode"></i> الكود:</th>
+                            <td>
+                                {% if supplier.code %}
+                                <span class="badge bg-secondary">{{ supplier.code }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-phone"></i> الهاتف:</th>
+                            <td>
+                                {% if supplier.phone %}
+                                <a href="tel:{{ supplier.phone }}">{{ supplier.phone }}</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-envelope"></i> البريد:</th>
+                            <td>
+                                {% if supplier.email %}
+                                <a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-map-marker-alt"></i> العنوان:</th>
+                            <td>{{ supplier.address or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-user"></i> المسؤول:</th>
+                            <td>{{ supplier.contact_person or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-receipt"></i> الرقم الضريبي:</th>
+                            <td>{{ supplier.tax_id or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-money-check-alt"></i> شروط الدفع:</th>
+                            <td>
+                                {% if supplier.payment_terms %}
+                                <span class="badge bg-info">{{ supplier.payment_terms }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-calendar"></i> تاريخ الإضافة:</th>
+                            <td>
+                                <small>{{ supplier.created_at.strftime('%Y-%m-%d %H:%M') if supplier.created_at else '-' }}</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><i class="fas fa-user-plus"></i> أُضيف بواسطة:</th>
+                            <td>{{ supplier.created_by or '-' }}</td>
+                        </tr>
+                    </table>
+
+                    {% if supplier.notes %}
+                    <hr>
+                    <h6><i class="fas fa-sticky-note"></i> ملاحظات:</h6>
+                    <p class="text-muted small">{{ supplier.notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if stats.overdue_invoices > 0 %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>تنبيه!</strong> يوجد {{ stats.overdue_invoices }} فاتورة متأخرة
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- الفواتير -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-file-invoice"></i> الفواتير</h5>
+                        {% if current_user.role in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات'] %}
+                        <a href="{{ url_for('new_invoice') }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus"></i> فاتورة جديدة
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if active_invoices %}
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="invoicesTable">
+                            <thead>
+                                <tr>
+                                    <th>رقم الفاتورة</th>
+                                    <th>التاريخ</th>
+                                    <th>الاستحقاق</th>
+                                    <th>المبلغ</th>
+                                    <th>المدفوع</th>
+                                    <th>المتبقي</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for invoice in active_invoices %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ invoice.invoice_number }}</strong>
+                                    </td>
+                                    <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '-' }}</td>
+                                    <td>
+                                        {% if invoice.due_date %}
+                                        {{ invoice.due_date.strftime('%Y-%m-%d') }}
+                                        {% if invoice.due_date < datetime.now(timezone.utc).date() and invoice.status != 'paid' %}
+                                        <span class="badge bg-danger">متأخر</span>
+                                        {% endif %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(invoice.final_amount) }} د.ل</td>
+                                    <td>{{ "%.2f"|format(invoice.paid_amount) }} د.ل</td>
+                                    <td>
+                                        <strong>{{ "%.2f"|format(invoice.remaining_amount) }}</strong> د.ل
+                                    </td>
+                                    <td>
+                                        {% if invoice.status == 'paid' %}
+                                        <span class="badge bg-success">مدفوعة</span>
+                                        {% elif invoice.status == 'partial' %}
+                                        <span class="badge bg-warning">جزئية</span>
+                                        {% elif invoice.status == 'overdue' %}
+                                        <span class="badge bg-danger">متأخرة</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">مفتوحة</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" class="btn btn-sm btn-info" title="عرض">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if invoice.remaining_amount > 0 %}
+                                            <a href="{{ url_for('add_invoice_payment', invoice_id=invoice.id) }}" class="btn btn-sm btn-success" title="تسجيل دفعة">
+                                                <i class="fas fa-money-bill-wave"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle fa-2x mb-2"></i>
+                        <p>لا توجد فواتير لهذا المورد</p>
+                        {% if current_user.role in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات'] %}
+                        <a href="{{ url_for('new_invoice') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> إضافة فاتورة جديدة
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#invoicesTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.10.24/i18n/Arabic.json'
+            },
+            order: [[1, 'desc']],
+            pageLength: 10
+        });
+    });
+</script>
+{% endblock %}
+

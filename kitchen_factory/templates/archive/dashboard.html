@@ -1,0 +1,364 @@
+{% extends 'base.html' %}
+
+{% block title %}لوحة الأرشيف{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- عنوان الصفحة -->
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-archive text-primary"></i> لوحة إدارة الأرشيف</h2>
+                <div class="btn-group">
+                    <a href="{{ url_for('archive_search') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> البحث المتقدم
+                    </a>
+                    {% if current_user.role == 'مدير' %}
+                    <button type="button" class="btn btn-outline-success" onclick="triggerAutoArchive()">
+                        <i class="fas fa-cogs"></i> أرشفة تلقائية
+                    </button>
+                    <a href="{{ url_for('bulk_archive') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-layer-group"></i> أرشفة جماعية
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- بطاقات الإحصائيات السريعة -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="total-archived">{{ stats.totals.total_archived_records or 0 }}</h4>
+                            <p class="mb-0">إجمالي السجلات المؤرشفة</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-database fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="total-size">{{ "%.1f"|format(stats.totals.total_size_mb or 0) }} MB</h4>
+                            <p class="mb-0">حجم الأرشيف</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-hdd fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.totals.active_schedules or 0 }}</h4>
+                            <p class="mb-0">جداول نشطة</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-calendar fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="pending-count">{{ stats.totals.pending_archive or 0 }}</h4>
+                            <p class="mb-0">في انتظار الأرشفة</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جداول الإحصائيات التفصيلية -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-table"></i> إحصائيات الجداول المؤرشفة</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>الجدول</th>
+                                    <th>المؤرشف</th>
+                                    <th>الحجم (MB)</th>
+                                    <th>آخر أرشفة</th>
+                                    <th>معدل النجاح</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for table_name, table_data in stats.tables.items() %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-{{ get_table_icon(table_name) or 'table' }}"></i>
+                                        {{ get_table_display_name(table_name) or table_name }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ table_data.total_archived or 0 }}</span>
+                                    </td>
+                                    <td>{{ "%.1f"|format(table_data.total_size_mb or 0) }}</td>
+                                    <td>
+                                        {% if table_data.last_archive_date %}
+                                            <small>{{ table_data.last_archive_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        {% else %}
+                                            <span class="text-muted">لا توجد</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set success_rate = table_data.success_rate or 100 %}
+                                        <span class="badge {% if success_rate >= 95 %}bg-success{% elif success_rate >= 80 %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ "%.1f"|format(success_rate) }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            {% if table_name == 'orders' %}
+                                            <a href="{{ url_for('archive_orders_list') }}" class="btn btn-outline-primary" title="عرض الطلبيات المؤرشفة">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% else %}
+                                            <a href="{{ url_for('archive_search', table_name=table_name) }}" class="btn btn-outline-primary" title="البحث في الأرشيف">
+                                                <i class="fas fa-search"></i>
+                                            </a>
+                                            {% endif %}
+                                            {% if current_user.role == 'مدير' %}
+                                            <button class="btn btn-outline-info" onclick="showTableStats('{{ table_name }}')" title="عرض الإحصائيات التفصيلية">
+                                                <i class="fas fa-chart-bar"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">لا توجد بيانات مؤرشفة حتى الآن</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-history"></i> العمليات الأخيرة</h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline" style="max-height: 400px; overflow-y: auto;">
+                        {% for operation in stats.recent_operations %}
+                        <div class="timeline-item mb-3">
+                            <div class="d-flex">
+                                <div class="timeline-marker {% if operation.status == 'completed' %}bg-success{% elif operation.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %} rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; flex-shrink: 0;">
+                                    <i class="fas fa-{{ get_operation_icon(operation.operation_type) or 'cog' }} text-white" style="font-size: 12px;"></i>
+                                </div>
+                                <div class="timeline-content ms-3 flex-grow-1">
+                                    <h6 class="mb-1">{{ get_operation_display_name(operation.operation_type) or operation.operation_type }}</h6>
+                                    <p class="text-muted mb-1 small">
+                                        {% if operation.table_name %}{{ get_table_display_name(operation.table_name) or operation.table_name }} - {% endif %}
+                                        {{ operation.record_count }} سجل
+                                        {% if operation.status == 'completed' %}
+                                        <span class="text-success">✓</span>
+                                        {% elif operation.status == 'failed' %}
+                                        <span class="text-danger">✗</span>
+                                        {% endif %}
+                                    </p>
+                                    <small class="text-muted">
+                                        {{ operation.operation_start[:10] if operation.operation_start else '' }}
+                                        {{ operation.operation_start[11:16] if operation.operation_start else '' }}
+                                        بواسطة {{ operation.performed_by }}
+                                        {% if operation.duration_formatted %}
+                                        - {{ operation.duration_formatted }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            <p class="mt-2">لا توجد عمليات حديثة</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Auto Archive Confirmation -->
+<div class="modal fade" id="autoArchiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تأكيد الأرشفة التلقائية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من تشغيل الأرشفة التلقائية؟</p>
+                <p class="text-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    سيتم أرشفة جميع السجلات المؤهلة حسب الإعدادات المحددة.
+                </p>
+                <div class="alert alert-info">
+                    <strong>ملاحظة:</strong> هذه العملية قد تستغرق عدة دقائق حسب حجم البيانات.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <form method="POST" action="{{ url_for('trigger_auto_archive') }}" class="d-inline">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-cogs"></i> تشغيل الأرشفة
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function triggerAutoArchive() {
+    const modal = new bootstrap.Modal(document.getElementById('autoArchiveModal'));
+    modal.show();
+}
+
+function showTableStats(tableName) {
+    // عرض إحصائيات تفصيلية للجدول
+    window.open(`{{ url_for('archive_statistics') }}?table=${tableName}`, '_blank');
+}
+
+// دوال مساعدة لأيقونات الجداول والعمليات
+function getTableIcon(tableName) {
+    const icons = {
+        'orders': 'shopping-cart',
+        'stages': 'tasks',
+        'technician_due': 'hard-hat',
+        'audit_log': 'shield-alt'
+    };
+    return icons[tableName] || 'table';
+}
+
+function getTableDisplayName(tableName) {
+    const names = {
+        'orders': 'الطلبيات',
+        'stages': 'مراحل الطلبيات',
+        'technician_due': 'مستحقات الفنيين',
+        'audit_log': 'سجل التدقيق'
+    };
+    return names[tableName] || tableName;
+}
+
+function getOperationIcon(operationType) {
+    const icons = {
+        'archive': 'archive',
+        'restore': 'undo',
+        'search': 'search',
+        'delete': 'trash',
+        'verify': 'check-circle'
+    };
+    return icons[operationType] || 'cog';
+}
+
+function getOperationDisplayName(operationType) {
+    const names = {
+        'archive': 'أرشفة',
+        'restore': 'استعادة',
+        'search': 'بحث',
+        'delete': 'حذف',
+        'verify': 'تحقق'
+    };
+    return names[operationType] || operationType;
+}
+
+// تحديث العدادات كل دقيقة
+setInterval(function() {
+    fetch('/api/archive/counts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('pending-count').textContent = data.pending_count;
+                document.getElementById('total-archived').textContent = data.total_archived;
+                document.getElementById('total-size').textContent = data.total_size_mb.toFixed(1) + ' MB';
+            }
+        })
+        .catch(error => console.error('خطأ في تحديث العدادات:', error));
+}, 60000); // كل دقيقة
+</script>
+
+<style>
+.timeline-item {
+    position: relative;
+}
+
+.timeline-marker {
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.timeline-content {
+    flex: 1;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.text-primary { color: #0d6efd !important; }
+.bg-primary { background-color: #0d6efd !important; }
+.bg-success { background-color: #198754 !important; }
+.bg-info { background-color: #0dcaf0 !important; }
+.bg-warning { background-color: #ffc107 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

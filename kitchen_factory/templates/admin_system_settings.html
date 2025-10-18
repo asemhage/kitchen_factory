@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}إعدادات النظام - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-cog"></i> إعدادات النظام</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('add_system_setting') }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> إضافة إعداد جديد
+            </a>
+            <a href="{{ url_for('admin_tools') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if settings_by_category %}
+    {% for category, settings in settings_by_category.items() %}
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-folder"></i> 
+                {{ category_names.get(category, category) }}
+                <span class="badge bg-secondary">{{ settings|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>المفتاح</th>
+                            <th>القيمة</th>
+                            <th>النوع</th>
+                            <th>الوصف</th>
+                            <th>الصالة</th>
+                            <th>آخر تحديث</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for setting in settings %}
+                        <tr>
+                            <td><code>{{ setting.key }}</code></td>
+                            <td>
+                                {% if setting.key == 'default_cost_price_mode' %}
+                                    {% if setting.value == 'purchase_price_default' %}
+                                    <strong>آخر سعر شراء</strong>
+                                    {% elif setting.value == 'weighted_average' %}
+                                    <strong>متوسط مرجّح</strong>
+                                    {% elif setting.value == 'last_invoice' %}
+                                    <strong>آخر فاتورة</strong>
+                                    {% else %}
+                                    <strong>{{ setting.value }}</strong>
+                                    {% endif %}
+                                {% elif setting.value_type == 'bool' %}
+                                    {% if setting.value and setting.value.lower() in ['true', '1', 'yes'] %}
+                                    <strong class="text-success">مفعّل</strong>
+                                    {% else %}
+                                    <strong class="text-danger">معطّل</strong>
+                                    {% endif %}
+                                {% elif setting.key == 'default_report_period' %}
+                                    {% if setting.value == 'today' %}
+                                    <strong>اليوم</strong>
+                                    {% elif setting.value == 'week' %}
+                                    <strong>هذا الأسبوع</strong>
+                                    {% elif setting.value == 'month' %}
+                                    <strong>هذا الشهر</strong>
+                                    {% elif setting.value == 'quarter' %}
+                                    <strong>هذا الربع</strong>
+                                    {% elif setting.value == 'year' %}
+                                    <strong>هذا العام</strong>
+                                    {% else %}
+                                    <strong>{{ setting.value }}</strong>
+                                    {% endif %}
+                                {% else %}
+                                <strong>{{ setting.value }}</strong>
+                                {% endif %}
+                                
+                                {% if setting.is_system %}
+                                <span class="badge bg-warning" title="إعداد نظام لا يمكن حذفه">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-info">{{ setting.value_type }}</span></td>
+                            <td><small class="text-muted">{{ setting.description or '-' }}</small></td>
+                            <td>
+                                {% if setting.showroom_id %}
+                                <span class="badge bg-primary">صالة #{{ setting.showroom_id }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">عام</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    {% if setting.updated_at %}
+                                    {{ setting.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                                    <br><span class="text-muted">{{ setting.updated_by or '-' }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('edit_system_setting', setting_id=setting.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> لا توجد إعدادات حالياً. 
+    <a href="{{ url_for('add_system_setting') }}">أضف الإعداد الأول</a>
+</div>
+{% endif %}
+
+{% endblock %}
+

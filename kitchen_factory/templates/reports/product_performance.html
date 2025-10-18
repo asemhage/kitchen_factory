@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير أداء المنتجات - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-chart-pie"></i> تقرير أداء المنتجات</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> رجوع
+        </a>
+    </div>
+</div>
+
+<!-- فلتر الفترة -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="period" class="form-label">فترة التقرير</label>
+                <select class="form-select" id="period" name="period" onchange="this.form.submit()">
+                    <option value="30" {% if period == 30 %}selected{% endif %}>آخر 30 يوم</option>
+                    <option value="90" {% if period == 90 %}selected{% endif %}>آخر 90 يوم</option>
+                    <option value="180" {% if period == 180 %}selected{% endif %}>آخر 6 أشهر</option>
+                    <option value="365" {% if period == 365 %}selected{% endif %}>آخر سنة</option>
+                </select>
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+                <div class="text-muted">
+                    <i class="fas fa-calendar"></i> 
+                    من {{ start_date.strftime('%Y-%m-%d') }} إلى {{ end_date.strftime('%Y-%m-%d') }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- الإحصائيات الإجمالية -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-start border-primary border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">عدد المواد النشطة</h6>
+                <h3 class="text-primary mb-0">{{ summary.top_materials_count }}</h3>
+                <small class="text-muted">مادة مستهلكة</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-warning border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">قيمة الاستهلاك</h6>
+                <h3 class="text-warning mb-0">{{ '{:,.2f}'.format(summary.total_consumed_value) }}</h3>
+                <small class="text-muted">دينار ليبي</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-success border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">إجمالي الربح المقدر</h6>
+                <h3 class="text-success mb-0">{{ '{:,.2f}'.format(summary.total_profit_value) }}</h3>
+                <small class="text-muted">دينار ليبي</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-info border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">متوسط هامش الربح</h6>
+                <h3 class="text-info mb-0">{{ '{:.2f}'.format(summary.avg_profit_margin) }}%</h3>
+                <small class="text-muted">من التكلفة</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- أكثر المواد طلباً وربحيتها -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="fas fa-star"></i> أكثر 20 مادة طلباً</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>اسم المادة</th>
+                        <th>الوحدة</th>
+                        <th class="text-end">الكمية المستهلكة</th>
+                        <th class="text-center">عدد الطلبات</th>
+                        <th class="text-end">سعر التكلفة</th>
+                        <th class="text-end">سعر البيع</th>
+                        <th class="text-end">الربح/وحدة</th>
+                        <th class="text-end">إجمالي الربح</th>
+                        <th class="text-end">هامش الربح %</th>
+                        <th class="text-end">متوسط شهري</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if material_profitability %}
+                        {% for data in material_profitability %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ data.material_name }}</strong></td>
+                            <td>{{ data.unit }}</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.total_consumed) }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ data.orders_count }}</span>
+                            </td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.cost_price) }}</td>
+                            <td class="text-end">
+                                {% if data.selling_price > 0 %}
+                                {{ '{:,.2f}'.format(data.selling_price) }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if data.unit_profit > 0 %}
+                                <span class="text-success">{{ '{:,.2f}'.format(data.unit_profit) }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if data.total_profit > 0 %}
+                                <strong class="text-success">{{ '{:,.2f}'.format(data.total_profit) }}</strong>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if data.profit_margin > 0 %}
+                                <span class="badge {% if data.profit_margin >= 30 %}bg-success{% elif data.profit_margin >= 15 %}bg-warning{% else %}bg-info{% endif %}">
+                                    {{ '{:.1f}'.format(data.profit_margin) }}%
+                                </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ '{:,.1f}'.format(data.avg_monthly_consumption) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center py-4">
+                            <i class="fas fa-info-circle text-muted"></i>
+                            لا توجد بيانات للفترة المحددة
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- أكثر الطلبات ربحية -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="fas fa-trophy"></i> أعلى 10 طلبات قيمة</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>رقم الطلب</th>
+                        <th>العميل</th>
+                        <th>التاريخ</th>
+                        <th class="text-end">قيمة الطلب</th>
+                        <th class="text-end">المبلغ المدفوع</th>
+                        <th class="text-end">المتبقي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if profitable_orders %}
+                        {% for order_id, order_date, customer_name, total_value, paid_amount in profitable_orders %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <a href="{{ url_for('order_detail', order_id=order_id) }}" class="text-decoration-none">
+                                    <strong>#{{ order_id }}</strong>
+                                </a>
+                            </td>
+                            <td>{{ customer_name }}</td>
+                            <td>{{ order_date.strftime('%Y-%m-%d') }}</td>
+                            <td class="text-end"><strong>{{ '{:,.2f}'.format(total_value) }}</strong></td>
+                            <td class="text-end text-success">{{ '{:,.2f}'.format(paid_amount or 0) }}</td>
+                            <td class="text-end text-warning">{{ '{:,.2f}'.format(total_value - (paid_amount or 0)) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">لا توجد طلبات مكتملة</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- الرسوم البيانية -->
+<div class="row">
+    <!-- رسم بياني: أعلى 10 مواد استهلاكاً -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-chart-bar"></i> أعلى 10 مواد استهلاكاً</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="topMaterialsChart" style="max-height: 350px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- رسم بياني: أعلى 10 مواد ربحية -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-chart-bar"></i> أعلى 10 مواد ربحية</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="profitMaterialsChart" style="max-height: 350px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// رسم بياني: أعلى 10 مواد استهلاكاً
+const topMaterialsCtx = document.getElementById('topMaterialsChart').getContext('2d');
+new Chart(topMaterialsCtx, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for data in material_profitability[:10] %}
+            '{{ data.material_name[:20] }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'الكمية المستهلكة',
+            data: [
+                {% for data in material_profitability[:10] %}
+                {{ data.total_consumed }},
+                {% endfor %}
+            ],
+            backgroundColor: 'rgba(13, 110, 253, 0.7)',
+            borderColor: 'rgb(13, 110, 253)',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            x: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// رسم بياني: أعلى 10 مواد ربحية
+const profitMaterialsCtx = document.getElementById('profitMaterialsChart').getContext('2d');
+const profitableMaterials = [
+    {% for data in material_profitability %}
+    {% if data.total_profit > 0 %}
+    {name: '{{ data.material_name[:20] }}', profit: {{ data.total_profit }}},
+    {% endif %}
+    {% endfor %}
+].sort((a, b) => b.profit - a.profit).slice(0, 10);
+
+new Chart(profitMaterialsCtx, {
+    type: 'bar',
+    data: {
+        labels: profitableMaterials.map(m => m.name),
+        datasets: [{
+            label: 'إجمالي الربح',
+            data: profitableMaterials.map(m => m.profit),
+            backgroundColor: 'rgba(25, 135, 84, 0.7)',
+            borderColor: 'rgb(25, 135, 84)',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'الربح: ' + context.parsed.x.toLocaleString('ar-LY', {minimumFractionDigits: 2}) + ' د.ل';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return value.toLocaleString('ar-LY');
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+

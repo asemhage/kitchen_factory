@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}تسجيل دفعة - {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-money-bill-wave"></i> تسجيل دفعة للفاتورة: {{ invoice.invoice_number }}</h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="fas fa-file-invoice-dollar"></i> معلومات الدفعة</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="form-group">
+                            <label for="amount">المبلغ المدفوع (د.ل) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control form-control-lg" 
+                                   id="amount" name="amount" min="0.01" 
+                                   max="{{ invoice.remaining_amount }}" 
+                                   value="{{ invoice.remaining_amount }}" required>
+                            <small class="form-text text-muted">
+                                الحد الأقصى: {{ "%.2f"|format(invoice.remaining_amount) }} د.ل
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="payment_method">طريقة الدفع <span class="text-danger">*</span></label>
+                            <select class="form-control" id="payment_method" name="payment_method" required>
+                                <option value="نقد" selected>نقد</option>
+                                <option value="بنك">تحويل بنكي</option>
+                                <option value="شيك">شيك</option>
+                                <option value="آجل">آجل</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="payment_date">تاريخ الدفع <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="payment_date" name="payment_date" 
+                                   value="{{ now().strftime('%Y-%m-%d') }}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reference_number">رقم المرجع/الشيك/التحويل</label>
+                            <input type="text" class="form-control" id="reference_number" name="reference_number">
+                            <small class="form-text text-muted">اختياري: رقم الشيك أو رقم التحويل البنكي</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notes">ملاحظات</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+
+                        <hr>
+
+                        <button type="submit" class="btn btn-success btn-lg btn-block">
+                            <i class="fas fa-check"></i> تسجيل الدفعة
+                        </button>
+                        <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" 
+                           class="btn btn-secondary btn-lg btn-block">
+                            <i class="fas fa-times"></i> إلغاء
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- ملخص الفاتورة -->
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-info-circle"></i> ملخص الفاتورة</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>رقم الفاتورة:</th>
+                            <td>{{ invoice.invoice_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>المورد:</th>
+                            <td>{{ invoice.supplier.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>التاريخ:</th>
+                            <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ملخص المبالغ -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-coins"></i> ملخص المبالغ</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>المبلغ الكلي:</th>
+                            <td class="text-right">
+                                <strong>{{ "%.2f"|format(invoice.final_amount) }}</strong> د.ل
+                            </td>
+                        </tr>
+                        <tr class="table-success">
+                            <th>المدفوع:</th>
+                            <td class="text-right">
+                                <strong class="text-success">{{ "%.2f"|format(invoice.paid_amount) }}</strong> د.ل
+                            </td>
+                        </tr>
+                        <tr class="table-warning">
+                            <th>المتبقي:</th>
+                            <td class="text-right">
+                                <strong class="text-warning">{{ "%.2f"|format(invoice.remaining_amount) }}</strong> د.ل
+                            </td>
+                        </tr>
+                    </table>
+
+                    {% if invoice.payments %}
+                    <hr>
+                    <h6 class="mb-2">الدفعات السابقة ({{ invoice.payments|length }}):</h6>
+                    <ul class="list-group list-group-flush">
+                        {% for payment in invoice.payments %}
+                        {% if payment.is_active %}
+                        <li class="list-group-item p-2">
+                            <small>
+                                <i class="fas fa-calendar"></i> {{ payment.payment_date.strftime('%Y-%m-%d') }}<br>
+                                <i class="fas fa-money-bill"></i> {{ "%.2f"|format(payment.amount) }} د.ل
+                                ({{ payment.payment_method }})
+                            </small>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- تنبيه -->
+            <div class="alert alert-warning mt-3">
+                <i class="fas fa-info-circle"></i>
+                <strong>ملاحظة:</strong> 
+                سيتم تحديث حالة الفاتورة تلقائياً بعد تسجيل الدفعة.
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+

@@ -1,0 +1,246 @@
+
+{% extends "base.html" %}
+
+{% block title %}تكاليف الطلب #{{ order.id }} - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">تكاليف الطلب #{{ order.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لتفاصيل الطلب
+            </a>
+            <a href="{{ url_for('order_stages', order_id=order.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-tasks"></i> مراحل الطلب
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">تكاليف الطلب</h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addCostModal">
+                    <i class="fas fa-plus"></i> إضافة تكلفة
+                </button>
+            </div>
+            <div class="card-body">
+                {% if order.order_costs %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>النوع</th>
+                                <th>الوصف</th>
+                                <th>المبلغ</th>
+                                <th>التاريخ</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cost in order.order_costs %}
+                            <tr>
+                                <td>
+                                    {% if cost.cost_type == 'مواد' %}
+                                    <span class="badge bg-primary">{{ cost.cost_type }}</span>
+                                    {% elif cost.cost_type == 'عمالة' %}
+                                    <span class="badge bg-info">{{ cost.cost_type }}</span>
+                                    {% elif cost.cost_type == 'نقل' %}
+                                    <span class="badge bg-warning">{{ cost.cost_type }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ cost.cost_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ cost.description or '-' }}</td>
+                                <td>{{ cost.amount }} دينار ليبي</td>
+                                <td>{{ cost.date }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete({{ cost.id }})">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="table-active">
+                                <td colspan="2"><strong>الإجمالي</strong></td>
+                                <td><strong>{{ order.total_price }} دينار ليبي</strong></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted">لم يتم تسجيل أي تكاليف للطلب بعد</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">معلومات الطلب</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>العميل:</strong> {{ order.customer.name }}</p>
+                <p><strong>تاريخ الطلب:</strong> {{ order.order_date }}</p>
+                <p><strong>الموعد النهائي:</strong> {{ order.deadline or 'لم يحدد' }}</p>
+                <p><strong>الحالة:</strong> 
+                    {% if order.status == 'مفتوح' %}
+                    <span class="badge bg-secondary">{{ order.status }}</span>
+                    {% elif order.status == 'قيد التنفيذ' %}
+                    <span class="badge bg-primary">{{ order.status }}</span>
+                    {% elif order.status == 'مكتمل' %}
+                    <span class="badge bg-success">{{ order.status }}</span>
+                    {% elif order.status == 'مسلّم' %}
+                    <span class="badge bg-info">{{ order.status }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>عدد الأمتار:</strong> {{ order.meters }}</p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">ملخص التكاليف</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>نوع التكلفة</th>
+                                <th>المبلغ</th>
+                                <th>النسبة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set total = order.total_price %}
+                            {% set material_costs = [] %}
+                            {% set labor_costs = [] %}
+                            {% set transport_costs = [] %}
+                            {% set other_costs = [] %}
+
+                            {% for cost in order.order_costs %}
+                                {% if cost.cost_type == 'مواد' %}
+                                    {% set _ = material_costs.append(cost.amount) %}
+                                {% elif cost.cost_type == 'عمالة' %}
+                                    {% set _ = labor_costs.append(cost.amount) %}
+                                {% elif cost.cost_type == 'نقل' %}
+                                    {% set _ = transport_costs.append(cost.amount) %}
+                                {% else %}
+                                    {% set _ = other_costs.append(cost.amount) %}
+                                {% endif %}
+                            {% endfor %}
+
+                            {% set material_total = material_costs|sum %}
+                            {% set labor_total = labor_costs|sum %}
+                            {% set transport_total = transport_costs|sum %}
+                            {% set other_total = other_costs|sum %}
+
+                            {% if material_total > 0 %}
+                            <tr>
+                                <td>المواد</td>
+                                <td>{{ material_total }} دينار ليبي</td>
+                                <td>{{ "%.1f"|format((material_total / total) * 100) }}%</td>
+                            </tr>
+                            {% endif %}
+
+                            {% if labor_total > 0 %}
+                            <tr>
+                                <td>العمالة</td>
+                                                                 <td>{{ labor_total }} دينار ليبي</td>
+                                <td>{{ "%.1f"|format((labor_total / total) * 100) }}%</td>
+                            </tr>
+                            {% endif %}
+
+                            {% if transport_total > 0 %}
+                            <tr>
+                                <td>النقل</td>
+                                                                 <td>{{ transport_total }} دينار ليبي</td>
+                                <td>{{ "%.1f"|format((transport_total / total) * 100) }}%</td>
+                            </tr>
+                            {% endif %}
+
+                            {% if other_total > 0 %}
+                            <tr>
+                                <td>أخرى</td>
+                                                                 <td>{{ other_total }} دينار ليبي</td>
+                                <td>{{ "%.1f"|format((other_total / total) * 100) }}%</td>
+                            </tr>
+                            {% endif %}
+
+                            <tr class="table-active">
+                                <td><strong>الإجمالي</strong></td>
+                                                                 <td><strong>{{ total }} دينار ليبي</strong></td>
+                                <td><strong>100%</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal إضافة تكلفة -->
+<div class="modal fade" id="addCostModal" tabindex="-1" aria-labelledby="addCostModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCostModalLabel">إضافة تكلفة جديدة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_order_cost', order_id=order.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="cost_type" class="form-label">نوع التكلفة</label>
+                        <select class="form-select" id="cost_type" name="cost_type" required>
+                            <option value="">اختر نوع التكلفة...</option>
+                            <option value="مواد">مواد</option>
+                            <option value="عمالة">عمالة</option>
+                            <option value="نقل">نقل</option>
+                            <option value="أخرى">أخرى</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">الوصف</label>
+                        <input type="text" class="form-control" id="description" name="description">
+                    </div>
+                    <div class="mb-3">
+                                                 <label for="amount" class="form-label">المبلغ (دينار ليبي)</label>
+                        <input type="number" class="form-control" id="amount" name="amount" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date" class="form-label">التاريخ</label>
+                        <input type="date" class="form-control" id="date" name="date" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">حفظ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // تعيين تاريخ اليوم كافتراضي
+        $('#date').val(new Date().toISOString().split('T')[0]);
+    });
+
+    function confirmDelete(costId) {
+        if (confirm('هل أنت متأكد من حذف هذه التكلفة؟')) {
+            // في الإصدار القادم، يمكن إضافة وظيفة الحذف
+            alert('سيتم إضافة وظيفة الحذف قريباً');
+        }
+    }
+</script>
+{% endblock %}
+{% endblock %}

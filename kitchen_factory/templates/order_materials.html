@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}مواد الطلبية #{{ order.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>
+                <i class="fas fa-boxes"></i>
+                إدارة مواد الطلبية #{{ order.id }}
+            </h2>
+            <p class="text-muted">
+                العميل: <strong>{{ order.customer.name }}</strong> | 
+                الحالة: <span class="badge badge-info">{{ order.status }}</span>
+            </p>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للطلبية
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3>{{ summary.total }}</h3>
+                    <p class="mb-0">إجمالي المواد</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3>{{ summary.complete }}</h3>
+                    <p class="mb-0">مواد مكتملة</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h3>{{ summary.partial }}</h3>
+                    <p class="mb-0">مواد جزئية</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h3>{{ summary.pending }}</h3>
+                    <p class="mb-0">مواد معلقة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if summary.has_shortage %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>تنبيه:</strong> هناك {{ summary.pending + summary.partial }} مادة تحتاج إلى شراء أو إكمال.
+        القيمة الإجمالية للنقص: <strong>{{ "%.2f"|format(summary.total_shortage_value) }} د.ل</strong>
+        | <a href="{{ url_for('shortage_materials_list') }}" class="alert-link">عرض جميع المواد الناقصة</a>
+    </div>
+    {% endif %}
+
+    <!-- Add Material Form -->
+    {% if current_user.role in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج'] %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-plus-circle"></i>
+                إضافة مادة جديدة
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="addMaterialForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="material_id">المادة *</label>
+                            <select class="form-control" id="material_id" name="material_id" required>
+                                <option value="">-- اختر المادة --</option>
+                                {% for material in materials %}
+                                <option value="{{ material.id }}" 
+                                        data-available="{{ material.quantity_available }}"
+                                        data-unit="{{ material.unit }}"
+                                        data-cost="{{ material.cost_price }}">
+                                    {{ material.name }} 
+                                    (المتاح: {{ material.quantity_available }} {{ material.unit }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="quantity_needed">الكمية المطلوبة *</label>
+                            <input type="number" step="0.01" class="form-control" 
+                                   id="quantity_needed" name="quantity_needed" required min="0.01">
+                            <small class="form-text text-muted" id="availabilityInfo"></small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-plus"></i> إضافة
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Materials Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-list"></i>
+                قائمة المواد المطلوبة
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if order_materials %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>#</th>
+                            <th>المادة</th>
+                            <th>المطلوب</th>
+                            <th>المخصوم</th>
+                            <th>الناقص</th>
+                            <th>الحالة</th>
+                            <th>النسبة</th>
+                            <th>التكلفة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for om in order_materials %}
+                        <tr class="{% if om.status == 'complete' %}table-success{% elif om.status == 'partial' %}table-warning{% else %}table-danger{% endif %}">
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <strong>{{ om.material.name }}</strong>
+                                <br><small class="text-muted">{{ om.material.code }}</small>
+                            </td>
+                            <td>{{ om.quantity_needed }} {{ om.material.unit }}</td>
+                            <td>{{ om.quantity_consumed }} {{ om.material.unit }}</td>
+                            <td>
+                                {% if om.quantity_shortage > 0 %}
+                                <span class="badge badge-danger">
+                                    {{ om.quantity_shortage }} {{ om.material.unit }}
+                                </span>
+                                {% else %}
+                                <span class="badge badge-success">لا يوجد</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if om.status == 'complete' %}
+                                <span class="badge badge-success">مكتمل</span>
+                                {% elif om.status == 'partial' %}
+                                <span class="badge badge-warning">جزئي</span>
+                                {% else %}
+                                <span class="badge badge-danger">معلق</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 25px;">
+                                    <div class="progress-bar {% if om.completion_percentage == 100 %}bg-success{% elif om.completion_percentage > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ om.completion_percentage }}%"
+                                         aria-valuenow="{{ om.completion_percentage }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        {{ om.completion_percentage }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ "%.2f"|format(om.total_cost or 0) }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    {% if om.quantity_shortage > 0 and current_user.role in ['مدير', 'مسؤول مخزن'] %}
+                                    <button type="button" class="btn btn-success" 
+                                            onclick="completeShortage({{ om.id }}, '{{ om.material.name }}')"
+                                            title="إكمال النقص">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if current_user.role in ['مدير', 'مسؤول مخزن'] %}
+                                    <button type="button" class="btn btn-warning" 
+                                            onclick="editQuantity({{ om.id }}, {{ om.quantity_needed }})"
+                                            title="تعديل الكمية">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    
+                                    <button type="button" class="btn btn-danger" 
+                                            onclick="deleteMaterial({{ om.id }}, '{{ om.material.name }}')"
+                                            title="حذف">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% if om.notes %}
+                        <tr>
+                            <td colspan="9" class="bg-light">
+                                <small><i class="fas fa-info-circle"></i> <strong>ملاحظات:</strong> {{ om.notes }}</small>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                <p>لم يتم إضافة أي مواد لهذه الطلبية بعد.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Forms -->
+<form id="completeShortageForm" method="POST" style="display: none;">
+</form>
+
+<form id="updateQuantityForm" method="POST" style="display: none;">
+    <input type="hidden" name="new_quantity" id="new_quantity_input">
+</form>
+
+<form id="deleteForm" method="POST" style="display: none;">
+</form>
+
+<script>
+// تحديث معلومات التوفر عند اختيار مادة
+document.getElementById('material_id').addEventListener('change', function() {
+    const selected = this.options[this.selectedIndex];
+    const available = selected.dataset.available;
+    const unit = selected.dataset.unit;
+    const info = document.getElementById('availabilityInfo');
+    
+    if (this.value) {
+        info.innerHTML = `المتاح في المخزن: <strong>${available} ${unit}</strong>`;
+        info.className = parseFloat(available) > 0 ? 'form-text text-success' : 'form-text text-danger';
+    } else {
+        info.innerHTML = '';
+    }
+});
+
+// إكمال نقص
+function completeShortage(materialId, materialName) {
+    if (confirm(`هل تريد إكمال نقص "${materialName}"؟\n\nسيتم خصم الكمية المتاحة من المخزن.`)) {
+        const form = document.getElementById('completeShortageForm');
+        form.action = `/order_material/${materialId}/complete_shortage`;
+        form.submit();
+    }
+}
+
+// تعديل الكمية
+function editQuantity(materialId, currentQuantity) {
+    const newQuantity = prompt(`أدخل الكمية الجديدة:\n(الكمية الحالية: ${currentQuantity})`, currentQuantity);
+    
+    if (newQuantity !== null && newQuantity !== '') {
+        const qty = parseFloat(newQuantity);
+        if (isNaN(qty) || qty <= 0) {
+            alert('يرجى إدخال كمية صحيحة أكبر من صفر');
+            return;
+        }
+        
+        const form = document.getElementById('updateQuantityForm');
+        document.getElementById('new_quantity_input').value = qty;
+        form.action = `/order_material/${materialId}/update`;
+        form.submit();
+    }
+}
+
+// حذف مادة
+function deleteMaterial(materialId, materialName) {
+    if (confirm(`هل أنت متأكد من حذف "${materialName}"؟\n\nسيتم إرجاع الكمية المخصومة إلى المخزن.`)) {
+        const form = document.getElementById('deleteForm');
+        form.action = `/order_material/${materialId}/delete`;
+        form.submit();
+    }
+}
+
+// تحذير عند إدخال كمية أكبر من المتاح
+document.getElementById('addMaterialForm').addEventListener('submit', function(e) {
+    const materialSelect = document.getElementById('material_id');
+    const quantityInput = document.getElementById('quantity_needed');
+    const selected = materialSelect.options[materialSelect.selectedIndex];
+    const available = parseFloat(selected.dataset.available);
+    const needed = parseFloat(quantityInput.value);
+    
+    if (needed > available) {
+        const shortage = needed - available;
+        if (!confirm(`تنبيه: الكمية المطلوبة (${needed}) أكبر من المتاح (${available}).\n\nالنقص: ${shortage}\n\nهل تريد الاستمرار؟`)) {
+            e.preventDefault();
+        }
+    }
+});
+</script>
+{% endblock %}
+
+

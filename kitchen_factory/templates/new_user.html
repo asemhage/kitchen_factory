@@ -1,0 +1,189 @@
+
+{% extends "base.html" %}
+
+{% block title %}إضافة مستخدم جديد - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">إضافة مستخدم جديد</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('users') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للمستخدمين
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">بيانات المستخدم</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label for="username" class="form-label">اسم المستخدم</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="password" class="form-label">كلمة المرور</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="confirm_password" class="form-label">تأكيد كلمة المرور</label>
+                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="role" class="form-label">الدور</label>
+                <select class="form-select" id="role" name="role" required>
+                    <option value="">-- اختر الدور --</option>
+                    <option value="مدير">مدير</option>
+                    <option value="موظف استقبال">موظف استقبال</option>
+                    <option value="مسؤول مخزن">مسؤول مخزن</option>
+                    <option value="مسؤول إنتاج">مسؤول إنتاج</option>
+                    <option value="مسؤول العمليات">مسؤول العمليات</option>
+                </select>
+            </div>
+
+            <div class="mb-3" id="showroom_field">
+                <label for="showroom_id" class="form-label">
+                    الصالة <span class="text-danger">*</span>
+                    <small class="text-muted">(غير مطلوب للمديرين)</small>
+                </label>
+                <select class="form-select" id="showroom_id" name="showroom_id">
+                    <option value="">-- اختر الصالة --</option>
+                    {% for showroom in showrooms %}
+                    <option value="{{ showroom.id }}">{{ showroom.name }} ({{ showroom.code }})</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">
+                    <i class="fas fa-info-circle"></i> 
+                    المديرون يمكنهم الوصول لجميع الصالات، الموظفون الآخرون مرتبطون بصالة واحدة فقط
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">صلاحيات الأدوار</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>الدور</th>
+                                    <th>إدارة الطلبات</th>
+                                    <th>إدارة المواد</th>
+                                    <th>خط الإنتاج</th>
+                                    <th>إدارة المستخدمين</th>
+                                    <th>التقارير</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-danger">مدير</span></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-primary">موظف استقبال</span></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-success">مسؤول مخزن</span></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-warning text-dark">مسؤول إنتاج</span></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-dark">مسؤول العمليات</span></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-check text-success"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                    <td><i class="fas fa-times text-danger"></i></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('users') }}" class="btn btn-secondary">إلغاء</a>
+                <button type="submit" class="btn btn-primary">حفظ المستخدم</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // إظهار/إخفاء حقل الصالة حسب الدور
+        function toggleShowroomField() {
+            const role = $('#role').val();
+            const showroomField = $('#showroom_field');
+            const showroomSelect = $('#showroom_id');
+            
+            if (role === 'مدير') {
+                showroomField.hide();
+                showroomSelect.prop('required', false);
+            } else {
+                showroomField.show();
+                showroomSelect.prop('required', true);
+            }
+        }
+        
+        // تشغيل عند تغيير الدور
+        $('#role').change(toggleShowroomField);
+        
+        // تشغيل عند تحميل الصفحة
+        toggleShowroomField();
+        
+        // التحقق من تطابق كلمتي المرور
+        $('form').submit(function() {
+            const password = $('#password').val();
+            const confirmPassword = $('#confirm_password').val();
+
+            if (password !== confirmPassword) {
+                alert('كلمتا المرور غير متطابقتين');
+                return false;
+            }
+            
+            // التحقق من الصالة للموظفين
+            const role = $('#role').val();
+            const showroom = $('#showroom_id').val();
+            
+            if (role !== 'مدير' && !showroom) {
+                alert('يجب اختيار الصالة للموظفين');
+                return false;
+            }
+
+            return true;
+        });
+    });
+</script>
+{% endblock %}

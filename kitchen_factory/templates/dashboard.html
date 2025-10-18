@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}لوحة التحكم - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <span class="badge bg-secondary">
+                <i class="fas fa-clock"></i> <span id="current-date"></span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- البطاقات الإحصائية الرئيسية -->
+<div class="row mb-4">
+    <!-- إجمالي الطلبات -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-start border-primary border-4 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">إجمالي الطلبات</div>
+                        <div class="h4 mb-0 font-weight-bold">{{ total_orders }}</div>
+                        <small class="text-muted">جميع الطلبات</small>
+                    </div>
+                    <div class="text-primary">
+                        <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الإيرادات -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-start border-success border-4 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">إجمالي الإيرادات</div>
+                        <div class="h4 mb-0 font-weight-bold">{{ '{:,.2f}'.format(total_revenue) }}</div>
+                        <small class="text-muted">المدفوعات المستلمة</small>
+                    </div>
+                    <div class="text-success">
+                        <i class="fas fa-dollar-sign fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- المتبقي (الديون) -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-start border-warning border-4 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">المتبقي</div>
+                        <div class="h4 mb-0 font-weight-bold">{{ '{:,.2f}'.format(total_remaining) }}</div>
+                        <small class="text-muted">مستحق من العملاء</small>
+                    </div>
+                    <div class="text-warning">
+                        <i class="fas fa-hourglass-half fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- متوسط قيمة الطلب -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-start border-info border-4 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">متوسط قيمة الطلب</div>
+                        <div class="h4 mb-0 font-weight-bold">{{ '{:,.2f}'.format(avg_order_value) }}</div>
+                        <small class="text-muted">للطلبات المكتملة</small>
+                    </div>
+                    <div class="text-info">
+                        <i class="fas fa-chart-line fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- الصف الثاني: KPIs -->
+<div class="row mb-4">
+    <!-- معدل النمو -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">معدل النمو</div>
+                        <div class="h4 mb-0 font-weight-bold {% if growth_rate > 0 %}text-success{% elif growth_rate < 0 %}text-danger{% endif %}">
+                            {{ '{:+.1f}'.format(growth_rate) }}%
+                        </div>
+                        <small class="text-muted">مقارنة بالشهر السابق</small>
+                    </div>
+                    <div class="{% if growth_rate > 0 %}text-success{% elif growth_rate < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                        <i class="fas fa-{% if growth_rate > 0 %}arrow-up{% elif growth_rate < 0 %}arrow-down{% else %}minus{% endif %} fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- طلبات هذا الشهر -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <a href="{{ url_for('orders_recent_30_days') }}" class="text-decoration-none">
+            <div class="card shadow-sm h-100 hover-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">آخر 30 يوم</div>
+                            <div class="h4 mb-0 font-weight-bold text-dark">{{ recent_orders_count }}</div>
+                            <small class="text-muted">طلبات جديدة</small>
+                        </div>
+                        <div class="text-secondary">
+                            <i class="fas fa-calendar-alt fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- قريبة من التسليم -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <a href="{{ url_for('orders_upcoming_delivery') }}" class="text-decoration-none">
+            <div class="card shadow-sm h-100 hover-card {% if upcoming_orders > 0 %}border-warning{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">قريبة من التسليم</div>
+                            <div class="h4 mb-0 font-weight-bold text-dark">{{ upcoming_orders }}</div>
+                            <small class="text-muted">خلال 3 أيام</small>
+                        </div>
+                        <div class="text-info">
+                            <i class="fas fa-truck fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- متأخرة -->
+    <div class="col-xl-3 col-md-6 mb-3">
+        <a href="{{ url_for('orders_overdue') }}" class="text-decoration-none">
+            <div class="card shadow-sm h-100 hover-card {% if overdue_orders > 0 %}border-danger{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">متأخرة</div>
+                            <div class="h4 mb-0 font-weight-bold text-dark">{{ overdue_orders }}</div>
+                            <small class="text-muted">فاتها موعد التسليم</small>
+                        </div>
+                        <div class="text-danger">
+                            <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- الرسوم البيانية -->
+<div class="row mb-4">
+    <!-- رسم بياني: حالة الطلبات -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-chart-pie"></i> توزيع الطلبات حسب الحالة
+                </h6>
+            </div>
+            <div class="card-body">
+                <canvas id="ordersStatusChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- إحصائيات سريعة -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-list"></i> ملخص الطلبات
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <div class="border-start border-primary border-4 ps-3">
+                            <h6 class="text-muted mb-0">مفتوحة</h6>
+                            <h3 class="text-primary mb-0">{{ open_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="border-start border-warning border-4 ps-3">
+                            <h6 class="text-muted mb-0">قيد التنفيذ</h6>
+                            <h3 class="text-warning mb-0">{{ in_progress_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="border-start border-success border-4 ps-3">
+                            <h6 class="text-muted mb-0">مكتملة</h6>
+                            <h3 class="text-success mb-0">{{ completed_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="border-start border-info border-4 ps-3">
+                            <h6 class="text-muted mb-0">مسلّمة</h6>
+                            <h3 class="text-info mb-0">{{ delivered_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border-start border-secondary border-4 ps-3">
+                            <h6 class="text-muted mb-0">ملغاة</h6>
+                            <h3 class="text-secondary mb-0">{{ cancelled_orders }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border-start border-danger border-4 ps-3">
+                            <h6 class="text-muted mb-0">معدل النجاح</h6>
+                            <h3 class="text-danger mb-0">
+                                {% if total_orders > 0 %}
+                                {{ '{:.1f}'.format((delivered_orders / total_orders) * 100) }}%
+                                {% else %}
+                                0%
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- آخر الطلبات -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-list-ul"></i> آخر الطلبات
+                </h6>
+                <a href="{{ url_for('orders') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-eye"></i> عرض الكل
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>رقم الطلب</th>
+                                <th>العميل</th>
+                                <th>التاريخ</th>
+                                <th>القيمة</th>
+                                <th>الحالة</th>
+                                <th>موعد التسليم</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if recent_orders %}
+                                {% for order in recent_orders %}
+                                <tr>
+                                    <td><strong>#{{ order.id }}</strong></td>
+                                    <td>{{ order.customer.name }}</td>
+                                    <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
+                                    <td><strong>{{ '{:,.2f}'.format(order.total_value) }}</strong></td>
+                                    <td>
+                                        {% if order.status == 'مفتوح' %}
+                                        <span class="badge bg-primary">{{ order.status }}</span>
+                                        {% elif order.status == 'قيد التنفيذ' %}
+                                        <span class="badge bg-warning">{{ order.status }}</span>
+                                        {% elif order.status == 'مكتمل' %}
+                                        <span class="badge bg-success">{{ order.status }}</span>
+                                        {% elif order.status == 'مسلّم' %}
+                                        <span class="badge bg-info">{{ order.status }}</span>
+                                        {% elif order.status == 'ملغي' %}
+                                        <span class="badge bg-secondary">{{ order.status }}</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">{{ order.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if order.delivery_date %}
+                                        {{ order.delivery_date.strftime('%Y-%m-%d') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>لا توجد طلبات حالياً</p>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* تأثير hover على البطاقات القابلة للنقر */
+.hover-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.hover-card:hover .card-body {
+    background-color: #f8f9fa;
+}
+
+/* تحسين البطاقات ذات الحدود الملونة */
+.border-warning {
+    border-width: 3px !important;
+    border-left: 5px solid #ffc107 !important;
+}
+
+.border-danger {
+    border-width: 3px !important;
+    border-left: 5px solid #dc3545 !important;
+}
+
+/* تأثير pulse للطلبيات المتأخرة */
+@keyframes pulse-danger {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+.border-danger.hover-card {
+    animation: pulse-danger 2s infinite;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// رسم بياني: توزيع الطلبات حسب الحالة
+const ctx = document.getElementById('ordersStatusChart').getContext('2d');
+const ordersChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['مفتوح', 'قيد التنفيذ', 'مكتمل', 'مسلّم', 'ملغي'],
+        datasets: [{
+            data: [
+                {{ open_orders }},
+                {{ in_progress_orders }},
+                {{ completed_orders }},
+                {{ delivered_orders }},
+                {{ cancelled_orders }}
+            ],
+            backgroundColor: [
+                '#0d6efd', // أزرق
+                '#ffc107', // أصفر
+                '#198754', // أخضر
+                '#0dcaf0', // سماوي
+                '#6c757d'  // رمادي
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 15,
+                    font: {
+                        size: 12
+                    }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return label + ': ' + value + ' (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// تعيين التاريخ الحالي
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date();
+    const dateString = today.getFullYear() + '-' + 
+                      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                      String(today.getDate()).padStart(2, '0');
+    document.getElementById('current-date').textContent = dateString;
+});
+</script>
+{% endblock %}

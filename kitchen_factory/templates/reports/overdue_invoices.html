@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير الفواتير المتأخرة{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-exclamation-triangle"></i> تقرير الفواتير المتأخرة</h2>
+        <div>
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="fas fa-print"></i> طباعة
+            </button>
+        </div>
+    </div>
+
+    <!-- إحصائيات عامة -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h6 class="card-title">عدد الفواتير المتأخرة</h6>
+                    <h2>{{ overdue_invoices|length }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h6 class="card-title">إجمالي المبالغ المتأخرة</h6>
+                    <h3>{{ "%.2f"|format(total_overdue_amount) }} د.ل</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">أقل من أسبوع</h6>
+                    <h2>{{ invoices_by_delay['أقل من أسبوع']|length }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">أكثر من شهر</h6>
+                    <h2>{{ invoices_by_delay['أكثر من شهر']|length }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if overdue_invoices %}
+    
+    <!-- الفواتير المتأخرة جداً (أكثر من شهر) -->
+    {% if invoices_by_delay['أكثر من شهر']|length > 0 %}
+    <div class="card mb-4 border-danger">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="fas fa-exclamation-circle"></i> فواتير متأخرة جداً (أكثر من شهر)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>رقم الفاتورة</th>
+                            <th>المورد</th>
+                            <th>تاريخ الاستحقاق</th>
+                            <th>أيام التأخير</th>
+                            <th>المبلغ المتبقي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices_by_delay['أكثر من شهر'] %}
+                        <tr class="table-danger">
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.supplier.name }}</td>
+                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <span class="badge bg-danger">
+                                    {{ (today - invoice.due_date).days }} يوم
+                                </span>
+                            </td>
+                            <td><strong>{{ "%.2f"|format(invoice.remaining_amount) }} د.ل</strong></td>
+                            <td>
+                                <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i> عرض
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- الفواتير المتأخرة (أسبوع إلى شهر) -->
+    {% if invoices_by_delay['أسبوع إلى شهر']|length > 0 %}
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="fas fa-clock"></i> فواتير متأخرة (من أسبوع إلى شهر)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>رقم الفاتورة</th>
+                            <th>المورد</th>
+                            <th>تاريخ الاستحقاق</th>
+                            <th>أيام التأخير</th>
+                            <th>المبلغ المتبقي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices_by_delay['أسبوع إلى شهر'] %}
+                        <tr class="table-warning">
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.supplier.name }}</td>
+                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <span class="badge bg-warning text-dark">
+                                    {{ (today - invoice.due_date).days }} يوم
+                                </span>
+                            </td>
+                            <td><strong>{{ "%.2f"|format(invoice.remaining_amount) }} د.ل</strong></td>
+                            <td>
+                                <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i> عرض
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- الفواتير المتأخرة مؤخراً (أقل من أسبوع) -->
+    {% if invoices_by_delay['أقل من أسبوع']|length > 0 %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-info-circle"></i> فواتير متأخرة مؤخراً (أقل من أسبوع)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>رقم الفاتورة</th>
+                            <th>المورد</th>
+                            <th>تاريخ الاستحقاق</th>
+                            <th>أيام التأخير</th>
+                            <th>المبلغ المتبقي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices_by_delay['أقل من أسبوع'] %}
+                        <tr class="table-info">
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.supplier.name }}</td>
+                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ (today - invoice.due_date).days }} يوم
+                                </span>
+                            </td>
+                            <td><strong>{{ "%.2f"|format(invoice.remaining_amount) }} د.ل</strong></td>
+                            <td>
+                                <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i> عرض
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- رسم بياني -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">توزيع الفواتير المتأخرة</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="overdueChart" height="80"></canvas>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> ممتاز! لا توجد فواتير متأخرة حالياً
+    </div>
+    {% endif %}
+
+    <!-- أزرار التنقل -->
+    <div class="mt-3">
+        <a href="{{ url_for('reports') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> العودة إلى التقارير
+        </a>
+        <a href="{{ url_for('invoices_list') }}" class="btn btn-info">
+            <i class="fas fa-file-invoice"></i> إدارة الفواتير
+        </a>
+    </div>
+</div>
+
+{% block scripts %}
+{% if overdue_invoices|length > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('overdueChart').getContext('2d');
+    
+    const categories = ['أقل من أسبوع', 'أسبوع إلى شهر', 'أكثر من شهر'];
+    const counts = [
+        {{ invoices_by_delay['أقل من أسبوع']|length }},
+        {{ invoices_by_delay['أسبوع إلى شهر']|length }},
+        {{ invoices_by_delay['أكثر من شهر']|length }}
+    ];
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categories,
+            datasets: [{
+                data: counts,
+                backgroundColor: [
+                    'rgba(23, 162, 184, 0.7)',  // info
+                    'rgba(255, 193, 7, 0.7)',   // warning
+                    'rgba(220, 53, 69, 0.7)'    // danger
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                title: {
+                    display: true,
+                    text: 'توزيع الفواتير المتأخرة حسب مدة التأخير'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}
+{% endblock %}
+

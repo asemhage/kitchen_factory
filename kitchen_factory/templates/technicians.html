@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}الفنيون{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">إدارة الفنيين</h2>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title">قائمة الفنيين</h5>
+                <a href="{{ url_for('new_technician') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة فني جديد
+                </a>
+            </div>
+            
+            <!-- فلاتر البحث -->
+            <div class="mb-3 row">
+                <div class="col-md-4">
+                    <select id="filter-specialization" class="form-select">
+                        <option value="">جميع التخصصات</option>
+                        <option value="تصنيع">تصنيع</option>
+                        <option value="تركيب">تركيب</option>
+                        <option value="كلاهما">كلاهما</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select id="filter-status" class="form-select">
+                        <option value="">جميع الحالات</option>
+                        <option value="نشط">نشط</option>
+                        <option value="متوقف">متوقف</option>
+                        <option value="مفصول">مفصول</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" id="filter-name" class="form-control" placeholder="بحث بالاسم...">
+                </div>
+            </div>
+            
+            {% if technicians %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="technicians-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>الاسم</th>
+                            <th>رقم الهاتف</th>
+                            <th>التخصص</th>
+                            <th>الحالة</th>
+                            <th>المستحقات</th>
+                            <th>المدفوع</th>
+                            <th>المتبقي</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for technician in technicians %}
+                        <tr>
+                            <td>{{ technician.id }}</td>
+                            <td>{{ technician.name }}</td>
+                            <td>{{ technician.phone or '-' }}</td>
+                            <td>{{ technician.specialization }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if technician.status == 'نشط' %}bg-success
+                                    {% elif technician.status == 'متوقف' %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ technician.status }}
+                                </span>
+                            </td>
+                            <td>{{ "%.2f"|format(technician.total_dues) }} د.ل</td>
+                            <td>{{ "%.2f"|format(technician.total_paid) }} د.ل</td>
+                            <td>{{ "%.2f"|format(technician.total_dues - technician.total_paid) }} د.ل</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('technician_detail', technician_id=technician.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('edit_technician', technician_id=technician.id) }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if technician.status == 'نشط' %}
+                                    <a href="{{ url_for('technician_dues', technician_id=technician.id) }}" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-money-bill"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> لا يوجد فنيون مسجلون حالياً.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // فلاتر البحث
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterSpecialization = document.getElementById('filter-specialization');
+        const filterStatus = document.getElementById('filter-status');
+        const filterName = document.getElementById('filter-name');
+        const table = document.getElementById('technicians-table');
+        
+        function applyFilters() {
+            if (!table) return;
+            
+            const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            const specFilter = filterSpecialization.value.toLowerCase();
+            const statusFilter = filterStatus.value;
+            const nameFilter = filterName.value.toLowerCase();
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                
+                const name = cells[1].textContent.toLowerCase();
+                const specialization = cells[3].textContent.toLowerCase();
+                const status = cells[4].textContent.trim();
+                
+                const matchesSpecialization = !specFilter || specialization.includes(specFilter);
+                const matchesStatus = !statusFilter || status.includes(statusFilter);
+                const matchesName = !nameFilter || name.includes(nameFilter);
+                
+                if (matchesSpecialization && matchesStatus && matchesName) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
+        
+        if (filterSpecialization) filterSpecialization.addEventListener('change', applyFilters);
+        if (filterStatus) filterStatus.addEventListener('change', applyFilters);
+        if (filterName) filterName.addEventListener('input', applyFilters);
+    });
+</script>
+{% endblock %}

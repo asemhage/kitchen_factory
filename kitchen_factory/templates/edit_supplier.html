@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل مورد: {{ supplier.name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-edit"></i> تعديل مورد: {{ supplier.name }}</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">لوحة التحكم</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('suppliers_list') }}">الموردين</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('supplier_detail', supplier_id=supplier.id) }}">{{ supplier.name }}</a></li>
+                    <li class="breadcrumb-item active">تعديل</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0"><i class="fas fa-edit"></i> تعديل بيانات المورد</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_supplier', supplier_id=supplier.id) }}">
+                        <!-- البيانات الأساسية -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-info-circle"></i> البيانات الأساسية</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">
+                                    اسم المورد <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ supplier.name }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="code" class="form-label">كود المورد</label>
+                                <input type="text" class="form-control" id="code" name="code" 
+                                       value="{{ supplier.code or '' }}"
+                                       placeholder="اختياري - كود فريد للمورد">
+                            </div>
+                        </div>
+
+                        <!-- معلومات الاتصال -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-phone"></i> معلومات الاتصال</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="phone" class="form-label">
+                                    <i class="fas fa-phone"></i> الهاتف
+                                </label>
+                                <input type="tel" class="form-control" id="phone" name="phone" 
+                                       value="{{ supplier.phone or '' }}"
+                                       placeholder="+218 91 234 5678">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">
+                                    <i class="fas fa-envelope"></i> البريد الإلكتروني
+                                </label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       value="{{ supplier.email or '' }}"
+                                       placeholder="supplier@example.com">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">
+                                <i class="fas fa-map-marker-alt"></i> العنوان
+                            </label>
+                            <textarea class="form-control" id="address" name="address" rows="2" 
+                                      placeholder="العنوان الكامل للمورد">{{ supplier.address or '' }}</textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="contact_person" class="form-label">
+                                    <i class="fas fa-user"></i> الشخص المسؤول
+                                </label>
+                                <input type="text" class="form-control" id="contact_person" name="contact_person" 
+                                       value="{{ supplier.contact_person or '' }}"
+                                       placeholder="اسم الشخص المسؤول">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="tax_id" class="form-label">
+                                    <i class="fas fa-receipt"></i> الرقم الضريبي
+                                </label>
+                                <input type="text" class="form-control" id="tax_id" name="tax_id" 
+                                       value="{{ supplier.tax_id or '' }}"
+                                       placeholder="الرقم الضريبي للمورد">
+                            </div>
+                        </div>
+
+                        <!-- معلومات إضافية -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-cog"></i> معلومات إضافية</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="payment_terms" class="form-label">
+                                <i class="fas fa-money-check-alt"></i> شروط الدفع
+                            </label>
+                            <select class="form-select" id="payment_terms" name="payment_terms">
+                                <option value="">-- اختر شروط الدفع --</option>
+                                <option value="نقد فوري" {% if supplier.payment_terms == 'نقد فوري' %}selected{% endif %}>نقد فوري</option>
+                                <option value="آجل 7 أيام" {% if supplier.payment_terms == 'آجل 7 أيام' %}selected{% endif %}>آجل 7 أيام</option>
+                                <option value="آجل 15 يوم" {% if supplier.payment_terms == 'آجل 15 يوم' %}selected{% endif %}>آجل 15 يوم</option>
+                                <option value="آجل 30 يوم" {% if supplier.payment_terms == 'آجل 30 يوم' %}selected{% endif %}>آجل 30 يوم</option>
+                                <option value="آجل 60 يوم" {% if supplier.payment_terms == 'آجل 60 يوم' %}selected{% endif %}>آجل 60 يوم</option>
+                                <option value="نصف نقد ونصف آجل" {% if supplier.payment_terms == 'نصف نقد ونصف آجل' %}selected{% endif %}>نصف نقد ونصف آجل</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="notes" class="form-label">
+                                <i class="fas fa-sticky-note"></i> ملاحظات
+                            </label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="أي ملاحظات إضافية عن المورد">{{ supplier.notes or '' }}</textarea>
+                        </div>
+
+                        <!-- معلومات التعديل -->
+                        <div class="alert alert-info">
+                            <small>
+                                <i class="fas fa-info-circle"></i>
+                                <strong>معلومات:</strong>
+                                تاريخ الإضافة: {{ supplier.created_at.strftime('%Y-%m-%d %H:%M') if supplier.created_at else '-' }}
+                                {% if supplier.created_by %}
+                                | بواسطة: {{ supplier.created_by }}
+                                {% endif %}
+                                {% if supplier.updated_at %}
+                                | آخر تحديث: {{ supplier.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        <!-- الأزرار -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('supplier_detail', supplier_id=supplier.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-save"></i> حفظ التعديلات
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // التحقق من صحة النموذج
+    (function() {
+        'use strict';
+        var forms = document.querySelectorAll('form');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}
+

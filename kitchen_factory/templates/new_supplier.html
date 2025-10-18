@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}إضافة مورد جديد{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-truck"></i> إضافة مورد جديد</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">لوحة التحكم</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('suppliers_list') }}">الموردين</a></li>
+                    <li class="breadcrumb-item active">إضافة مورد جديد</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-plus"></i> بيانات المورد</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('new_supplier') }}">
+                        <!-- البيانات الأساسية -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-info-circle"></i> البيانات الأساسية</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">
+                                    اسم المورد <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="code" class="form-label">كود المورد</label>
+                                <input type="text" class="form-control" id="code" name="code" 
+                                       placeholder="اختياري - كود فريد للمورد">
+                            </div>
+                        </div>
+
+                        <!-- معلومات الاتصال -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-phone"></i> معلومات الاتصال</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="phone" class="form-label">
+                                    <i class="fas fa-phone"></i> الهاتف
+                                </label>
+                                <input type="tel" class="form-control" id="phone" name="phone" 
+                                       placeholder="+218 91 234 5678">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">
+                                    <i class="fas fa-envelope"></i> البريد الإلكتروني
+                                </label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       placeholder="supplier@example.com">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">
+                                <i class="fas fa-map-marker-alt"></i> العنوان
+                            </label>
+                            <textarea class="form-control" id="address" name="address" rows="2" 
+                                      placeholder="العنوان الكامل للمورد"></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="contact_person" class="form-label">
+                                    <i class="fas fa-user"></i> الشخص المسؤول
+                                </label>
+                                <input type="text" class="form-control" id="contact_person" name="contact_person" 
+                                       placeholder="اسم الشخص المسؤول">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="tax_id" class="form-label">
+                                    <i class="fas fa-receipt"></i> الرقم الضريبي
+                                </label>
+                                <input type="text" class="form-control" id="tax_id" name="tax_id" 
+                                       placeholder="الرقم الضريبي للمورد">
+                            </div>
+                        </div>
+
+                        <!-- معلومات إضافية -->
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h6 class="text-primary"><i class="fas fa-cog"></i> معلومات إضافية</h6>
+                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="payment_terms" class="form-label">
+                                <i class="fas fa-money-check-alt"></i> شروط الدفع
+                            </label>
+                            <select class="form-select" id="payment_terms" name="payment_terms">
+                                <option value="">-- اختر شروط الدفع --</option>
+                                <option value="نقد فوري">نقد فوري</option>
+                                <option value="آجل 7 أيام">آجل 7 أيام</option>
+                                <option value="آجل 15 يوم">آجل 15 يوم</option>
+                                <option value="آجل 30 يوم">آجل 30 يوم</option>
+                                <option value="آجل 60 يوم">آجل 60 يوم</option>
+                                <option value="نصف نقد ونصف آجل">نصف نقد ونصف آجل</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="notes" class="form-label">
+                                <i class="fas fa-sticky-note"></i> ملاحظات
+                            </label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="أي ملاحظات إضافية عن المورد"></textarea>
+                        </div>
+
+                        <!-- الأزرار -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('suppliers_list') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> حفظ المورد
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- نصائح -->
+            <div class="card mt-3">
+                <div class="card-body bg-light">
+                    <h6 class="text-info"><i class="fas fa-lightbulb"></i> نصائح:</h6>
+                    <ul class="small mb-0">
+                        <li>اسم المورد هو الحقل الوحيد المطلوب</li>
+                        <li>يُنصح بإدخال كود فريد لكل مورد لسهولة التمييز</li>
+                        <li>تأكد من صحة أرقام الهواتف والبريد الإلكتروني</li>
+                        <li>شروط الدفع تساعد في تتبع المواعيد النهائية للدفعات</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // التحقق من صحة النموذج
+    (function() {
+        'use strict';
+        var forms = document.querySelectorAll('form');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}
+

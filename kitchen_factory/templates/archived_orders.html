@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}الطلبيات المؤرشفة{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">الطلبيات المؤرشفة</h2>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title">قائمة الطلبيات المؤرشفة</h5>
+                <a href="{{ url_for('orders') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-clipboard-list"></i> الطلبيات النشطة
+                </a>
+            </div>
+            
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>العميل</th>
+                            <th>تاريخ الطلب</th>
+                            <th>القيمة</th>
+                            <th>الحالة</th>
+                            <th>تاريخ الأرشفة</th>
+                            <th>بواسطة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.id }}</td>
+                            <td>{{ order.customer.name }}</td>
+                            <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ order.total_value }} د.ل</td>
+                            <td>
+                                <span class="badge 
+                                    {% if order.status == 'مكتمل' %}bg-success
+                                    {% elif order.status == 'قيد التنفيذ' %}bg-warning
+                                    {% elif order.status == 'مفتوح' %}bg-info
+                                    {% elif order.status == 'ملغي' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ order.status }}
+                                </span>
+                            </td>
+                            <td>{{ order.archived_at.strftime('%Y-%m-%d %H:%M') if order.archived_at else '' }}</td>
+                            <td>{{ order.archived_by }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <form action="{{ url_for('unarchive_order', order_id=order.id) }}" method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('هل أنت متأكد من إلغاء أرشفة هذه الطلبية؟')">
+                                            <i class="fas fa-box-open"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> لا توجد طلبيات مؤرشفة.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

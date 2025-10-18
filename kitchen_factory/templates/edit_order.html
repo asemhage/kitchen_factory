@@ -1,0 +1,74 @@
+
+{% extends "base.html" %}
+
+{% block title %}تعديل الطلب #{{ order.id }} - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">تعديل الطلب #{{ order.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لتفاصيل الطلب
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">بيانات الطلب</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="customer_name" class="form-label">اسم العميل</label>
+                    <input type="text" class="form-control" id="customer_name" name="customer_name" value="{{ order.customer.name }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="customer_phone" class="form-label">هاتف العميل</label>
+                    <input type="text" class="form-control" id="customer_phone" name="customer_phone" value="{{ order.customer.phone }}">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="customer_address" class="form-label">عنوان العميل</label>
+                <textarea class="form-control" id="customer_address" name="customer_address" rows="2">{{ order.customer.address }}</textarea>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="delivery_date" class="form-label">تاريخ التسليم</label>
+                    <input type="date" class="form-control" id="delivery_date" name="delivery_date" value="{{ order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="deadline" class="form-label">الموعد النهائي</label>
+                    <input type="date" class="form-control" id="deadline" name="deadline" value="{{ order.deadline.strftime('%Y-%m-%d') if order.deadline else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="meters" class="form-label">عدد الأمتار</label>
+                    <input type="number" class="form-control" id="meters" name="meters" min="1" value="{{ order.meters }}" required>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="status" class="form-label">الحالة</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="مفتوح" {% if order.status == 'مفتوح' %}selected{% endif %}>مفتوح</option>
+                        <option value="قيد التنفيذ" {% if order.status == 'قيد التنفيذ' %}selected{% endif %}>قيد التنفيذ</option>
+                        <option value="مكتمل" {% if order.status == 'مكتمل' %}selected{% endif %}>مكتمل</option>
+                        <option value="ملغي" {% if order.status == 'ملغي' %}selected{% endif %}>ملغي</option>
+                        <option value="مسلّم" {% if order.status == 'مسلّم' %}selected{% endif %}>مسلّم</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">حفظ التغييرات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

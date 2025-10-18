@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير استهلاك المواد{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">تقرير استهلاك المواد</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">إجمالي استهلاك المواد في جميع الطلبات</h5>
+        </div>
+        <div class="card-body">
+            {% if materials_consumption %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>المادة</th>
+                            <th>الكمية المستهلكة</th>
+                            <th>الوحدة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for material in materials_consumption %}
+                        <tr>
+                            <td>{{ material.name }}</td>
+                            <td>{{ "%.2f"|format(material.total_used or 0) }}</td>
+                            <td>{{ material.unit or '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4">
+                <canvas id="materialsConsumptionChart" width="400" height="200"></canvas>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> لا توجد بيانات استهلاك مواد متاحة
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('reports') }}" class="btn btn-secondary">العودة إلى صفحة التقارير</a>
+        <button class="btn btn-primary" onclick="window.print()">طباعة التقرير</button>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('materialsConsumptionChart').getContext('2d');
+
+        const labels = [];
+        const data = [];
+
+        {% for material in materials_consumption %}
+            labels.push('{{ material.name }}');
+            data.push({{ material.total_used or 0 }});
+        {% endfor %}
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'الكمية المستهلكة',
+                    data: data,
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'الكمية'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'المادة'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'استهلاك المواد'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

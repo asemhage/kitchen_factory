@@ -1,0 +1,60 @@
+
+{% extends "base.html" %}
+
+{% block title %}الصفحة الرئيسية - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="jumbotron bg-light p-5 rounded-3 mb-4">
+    <h1 class="display-4">مرحباً بك في نظام إدارة مصنع المطابخ</h1>
+    <p class="lead">نظام متكامل لإدارة جميع عمليات مصنع المطابخ بدءاً من استقبال الطلبات وحتى التسليم.</p>
+    <hr class="my-4">
+    <p>يرجى تسجيل الدخول للوصول إلى النظام.</p>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('login') }}" role="button">تسجيل الدخول</a>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-clipboard-list text-primary"></i> إدارة الطلبات</h5>
+                <p class="card-text">إدارة طلبات العملاء، تتبع حالة الطلب، وإدارة الملفات المرتبطة بالطلبات.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-boxes text-success"></i> إدارة المواد</h5>
+                <p class="card-text">إدارة المواد الخام، تتبع المخزون، وتنبيهات انخفاض المخزون.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-industry text-warning"></i> خط الإنتاج</h5>
+                <p class="card-text">تتبع مراحل الإنتاج، تعيين الفنيين، ومتابعة تقدم الإنتاج.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-users text-info"></i> إدارة المستخدمين</h5>
+                <p class="card-text">إدارة حسابات المستخدمين وتحديد الصلاحيات لكل مستخدم.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-bar text-danger"></i> التقارير</h5>
+                <p class="card-text">تقارير شاملة عن الطلبات، المواد، الإنتاج، والأداء المالي.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

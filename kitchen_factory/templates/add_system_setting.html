@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}إضافة إعداد جديد - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-plus"></i> إضافة إعداد جديد</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('system_settings_list') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="key" class="form-label">المفتاح (Key) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="key" name="key" required 
+                               placeholder="مثال: default_cost_price_mode">
+                        <small class="form-text text-muted">يجب أن يكون فريداً، ويُفضل استخدام snake_case</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="value" class="form-label">القيمة <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="value" name="value" required
+                               placeholder="القيمة الافتراضية">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="value_type" class="form-label">نوع القيمة <span class="text-danger">*</span></label>
+                        <select class="form-select" id="value_type" name="value_type" required>
+                            <option value="string" selected>نص (string)</option>
+                            <option value="int">رقم صحيح (int)</option>
+                            <option value="float">رقم عشري (float)</option>
+                            <option value="bool">منطقي (bool)</option>
+                            <option value="json">JSON</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="category" class="form-label">الفئة <span class="text-danger">*</span></label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="general">إعدادات عامة</option>
+                            <option value="pricing">سياسات التسعير</option>
+                            <option value="inventory">إدارة المخزون</option>
+                            <option value="permissions">الصلاحيات</option>
+                            <option value="reports">التقارير</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">الوصف</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="وصف مختصر للإعداد"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="showroom_id" class="form-label">الصالة (اختياري)</label>
+                        <select class="form-select" id="showroom_id" name="showroom_id">
+                            <option value="">عام (لجميع الصالات)</option>
+                            {% for showroom in showrooms %}
+                            <option value="{{ showroom.id }}">{{ showroom.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">اترك فارغاً للإعدادات العامة على مستوى النظام</small>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ الإعداد
+                        </button>
+                        <a href="{{ url_for('system_settings_list') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> إلغاء
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-lightbulb"></i> نصائح</h6>
+            </div>
+            <div class="card-body">
+                <h6>أمثلة على الإعدادات:</h6>
+                <ul class="small mb-0">
+                    <li><strong>pricing:</strong> default_cost_price_mode, allow_manual_price_edit</li>
+                    <li><strong>inventory:</strong> low_stock_threshold, auto_reorder_enabled</li>
+                    <li><strong>permissions:</strong> allow_reception_edit_prices</li>
+                    <li><strong>reports:</strong> default_report_period, currency_symbol</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+

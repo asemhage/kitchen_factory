@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير الطلبات حسب الحالة{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">تقرير الطلبات حسب الحالة</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">ملخص الطلبات حسب الحالة</h5>
+        </div>
+        <div class="card-body">
+            {% if orders_by_status %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>الحالة</th>
+                            <th>عدد الطلبات</th>
+                            <th>النسبة المئوية</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(total_orders=0) %}
+                        {% for status, count in orders_by_status %}
+                            {% set ns.total_orders = ns.total_orders + count %}
+                        {% endfor %}
+
+                        {% for status, count in orders_by_status %}
+                        <tr>
+                            <td><span class="badge" style="background-color: {{ status_colors.get(status, 'rgba(128, 128, 128, 0.7)') }}">{{ status }}</span></td>
+                            <td><strong>{{ count }}</strong></td>
+                            <td>{{ "%.1f"|format((count / ns.total_orders * 100) if ns.total_orders > 0 else 0) }}%</td>
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="table-active font-weight-bold">
+                            <td>الإجمالي</td>
+                            <td>{{ ns.total_orders }}</td>
+                            <td>100%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center" role="alert">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>لا توجد طلبيات لعرضها</h5>
+                <p>لم يتم العثور على أي طلبيات في النظام حالياً.</p>
+                <a href="{{ url_for('new_order') }}" class="btn btn-primary mt-2">
+                    <i class="fas fa-plus"></i> إضافة طلبية جديدة
+                </a>
+            </div>
+            {% endif %}
+
+            {% if orders_by_status %}
+            <div class="mt-4">
+                <canvas id="ordersByStatusChart" width="400" height="200"></canvas>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('reports') }}" class="btn btn-secondary">العودة إلى صفحة التقارير</a>
+        <button class="btn btn-primary" onclick="window.print()">طباعة التقرير</button>
+    </div>
+</div>
+
+{% block scripts %}
+{% if orders_by_status %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('ordersByStatusChart');
+        if (!ctx) return; // التحقق من وجود العنصر
+        
+        const chartCtx = ctx.getContext('2d');
+
+        const labels = [];
+        const data = [];
+        const colors = [];
+        const borderColors = [];
+
+        {% for status, count in orders_by_status %}
+            labels.push('{{ status }}');
+            data.push({{ count }});
+            colors.push('{{ status_colors.get(status, "rgba(128, 128, 128, 0.7)") }}');
+            borderColors.push('{{ status_colors.get(status, "rgba(128, 128, 128, 0.7)").replace("0.7", "1") }}');
+        {% endfor %}
+
+        new Chart(chartCtx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            font: {
+                                size: 14,
+                                family: "'Cairo', sans-serif"
+                            },
+                            padding: 15
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'توزيع الطلبات حسب الحالة',
+                        font: {
+                            size: 16,
+                            weight: 'bold',
+                            family: "'Cairo', sans-serif"
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                let value = context.parsed || 0;
+                                let total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                let percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% endblock %}

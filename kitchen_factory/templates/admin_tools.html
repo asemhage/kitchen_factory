@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}أدوات المشرف - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">أدوات المشرف</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للرئيسية
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">النسخ الاحتياطي لقاعدة البيانات</h5>
+            </div>
+            <div class="card-body">
+                <p>يمكنك إنشاء نسخة احتياطية من قاعدة البيانات الحالية. سيتم حفظ النسخة الاحتياطية في مجلد backups.</p>
+                <a href="{{ url_for('backup_database') }}" class="btn btn-primary" onclick="return confirm('هل أنت متأكد من إنشاء نسخة احتياطية جديدة؟')">
+                    <i class="fas fa-download"></i> إنشاء نسخة احتياطية
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">استعادة نسخة احتياطية</h5>
+            </div>
+            <div class="card-body">
+                <p>يمكنك استعادة قاعدة البيانات من نسخة احتياطية سابقة. سيتم استبدال جميع البيانات الحالية بالبيانات من النسخة الاحتياطية.</p>
+                <form method="POST" action="{{ url_for('restore_database') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="backup_file" class="form-label">اختر ملف النسخة الاحتياطية</label>
+                        <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".db" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('هل أنت متأكد من استعادة النسخة الاحتياطية؟ سيتم فقدان جميع التغييرات الحالية.')">
+                        <i class="fas fa-upload"></i> استعادة النسخة الاحتياطية
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if backup_info %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">النسخ الاحتياطية المتوفرة</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>اسم الملف</th>
+                        <th>حجم الملف</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backup_info %}
+                    <tr>
+                        <td>{{ backup.filename }}</td>
+                        <td>{{ '%.2f'|format(backup.size) }} KB</td>
+                        <td>
+                            {{ backup.date[:4] }}-{{ backup.date[4:6] }}-{{ backup.date[6:8] }} {{ backup.date[9:11] }}:{{ backup.date[11:13] }}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('static', filename='../backups/' + backup.filename) }}" class="btn btn-sm btn-primary" download>
+                                <i class="fas fa-download"></i> تحميل
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- أدوات إدارة متقدمة -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> إعدادات النظام</h5>
+            </div>
+            <div class="card-body">
+                <p>إدارة إعدادات النظام المركزية وسياسات التسعير</p>
+                <a href="{{ url_for('system_settings_list') }}" class="btn btn-primary">
+                    <i class="fas fa-sliders-h"></i> إدارة الإعدادات
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-history"></i> سجل التدقيق</h5>
+            </div>
+            <div class="card-body">
+                <p>عرض سجل التغييرات والعمليات المهمة في النظام</p>
+                <a href="{{ url_for('audit_log_list') }}" class="btn btn-info">
+                    <i class="fas fa-list"></i> عرض السجل
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-tag"></i> سياسات التسعير</h5>
+            </div>
+            <div class="card-body">
+                <p>إدارة سياسات تسعير الأصناف وقفل الأسعار</p>
+                <a href="{{ url_for('material_pricing_list') }}" class="btn btn-success">
+                    <i class="fas fa-dollar-sign"></i> إدارة التسعير
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- أداة إعادة تعيين البيانات -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-database"></i>
+                    إعادة تعيين البيانات (Data Reset)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>تحذير شديد!</strong>
+                    <p class="mb-1">هذه العملية سوف:</p>
+                    <ul class="mb-0">
+                        <li>تحذف <strong>جميع</strong> الطلبيات والفواتير والمواد</li>
+                        <li>تحذف <strong>جميع</strong> العملاء والموردين</li>
+                        <li>تحذف <strong>جميع</strong> بيانات الأرشيف (عدا المراحل)</li>
+                        <li><strong class="text-success">تحتفظ</strong> بحسابات المستخدمين والإعدادات <strong>والمراحل</strong></li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>ملاحظة:</strong> سيتم الاحتفاظ بجميع المراحل المسجلة في النظام.
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-info-circle text-info"></i> ما سيتم الاحتفاظ به:</h6>
+                        <ul>
+                            <li>✅ حسابات المستخدمين</li>
+                            <li>✅ الصالات والمخازن</li>
+                            <li>✅ الفنيين</li>
+                            <li>✅ <strong class="text-success">المراحل</strong></li>
+                            <li>✅ إعدادات النظام</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-shield-alt text-success"></i> الأمان:</h6>
+                        <ul class="small">
+                            <li>✅ سيتم إنشاء نسخة احتياطية تلقائية</li>
+                            <li>✅ يتطلب تأكيد كلمة المرور</li>
+                            <li>✅ متاح للمدير فقط</li>
+                            <li>✅ سجل كامل في Audit Log</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if current_user.role == 'مدير' %}
+                <button type="button" class="btn btn-danger btn-lg w-100" 
+                        data-bs-toggle="modal" data-bs-target="#resetDataModal">
+                    <i class="fas fa-trash-alt"></i>
+                    إعادة تعيين البيانات
+                </button>
+                {% else %}
+                <button type="button" class="btn btn-danger btn-lg w-100" disabled>
+                    <i class="fas fa-lock"></i>
+                    متاح للمدير فقط
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal التأكيد -->
+<div class="modal fade" id="resetDataModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    تأكيد إعادة تعيين البيانات
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <form method="POST" action="{{ url_for('reset_all_data') }}" id="resetDataForm">
+                <div class="modal-body">
+                    <!-- تحذير كبير -->
+                    <div class="alert alert-danger border-3">
+                        <h4 class="alert-heading">
+                            <i class="fas fa-skull-crossbones"></i>
+                            عملية لا يمكن التراجع عنها!
+                        </h4>
+                        <hr>
+                        <p class="mb-0">
+                            هذه العملية ستحذف <strong>بشكل دائم</strong> جميع البيانات التشغيلية.
+                            على الرغم من إنشاء نسخة احتياطية، يُنصح بشدة بالتأكد من حفظ نسخة يدوية.
+                        </p>
+                    </div>
+
+                    <!-- نسخة احتياطية -->
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirmBackup" required>
+                        <label class="form-check-label" for="confirmBackup">
+                            <i class="fas fa-check-circle text-success"></i>
+                            أفهم أنه سيتم إنشاء نسخة احتياطية تلقائية في مجلد <code>instance/</code>
+                        </label>
+                    </div>
+
+                    <!-- تأكيد الفهم -->
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirmUnderstand" required>
+                        <label class="form-check-label" for="confirmUnderstand">
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            أفهم أن هذه العملية <strong>لا يمكن التراجع عنها</strong>
+                        </label>
+                    </div>
+
+                    <!-- كتابة كلمة التأكيد -->
+                    <div class="mb-3">
+                        <label for="confirmText" class="form-label">
+                            <strong>للمتابعة، اكتب كلمة:</strong> 
+                            <span class="badge bg-danger">حذف البيانات</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg text-center" 
+                               id="confirmText" name="confirm_text" 
+                               placeholder="اكتب: حذف البيانات" 
+                               required>
+                        <small class="text-muted">يجب كتابة النص بالضبط</small>
+                    </div>
+
+                    <!-- كلمة مرور المدير -->
+                    <div class="mb-3">
+                        <label for="adminPassword" class="form-label">
+                            <strong>كلمة مرور المدير:</strong>
+                        </label>
+                        <input type="password" class="form-control form-control-lg" 
+                               id="adminPassword" name="admin_password" 
+                               placeholder="أدخل كلمة مرورك للتأكيد" 
+                               required>
+                    </div>
+
+                    <!-- سبب الحذف (اختياري) -->
+                    <div class="mb-3">
+                        <label for="resetReason" class="form-label">
+                            سبب إعادة التعيين (اختياري):
+                        </label>
+                        <textarea class="form-control" id="resetReason" name="reset_reason" 
+                                  rows="3" placeholder="مثال: بداية سنة مالية جديدة، بيانات تجريبية، إلخ"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> إلغاء
+                    </button>
+                    <button type="submit" class="btn btn-danger btn-lg" id="confirmResetBtn" disabled>
+                        <i class="fas fa-trash-alt"></i>
+                        نعم، احذف جميع البيانات
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmBackup = document.getElementById('confirmBackup');
+    const confirmUnderstand = document.getElementById('confirmUnderstand');
+    const confirmText = document.getElementById('confirmText');
+    const confirmResetBtn = document.getElementById('confirmResetBtn');
+
+    function checkValidation() {
+        const allChecked = confirmBackup.checked && confirmUnderstand.checked;
+        const textMatches = confirmText.value === 'حذف البيانات';
+        confirmResetBtn.disabled = !(allChecked && textMatches);
+    }
+
+    confirmBackup.addEventListener('change', checkValidation);
+    confirmUnderstand.addEventListener('change', checkValidation);
+    confirmText.addEventListener('input', checkValidation);
+
+    // تأكيد إضافي عند الإرسال
+    document.getElementById('resetDataForm').addEventListener('submit', function(e) {
+        if (!confirm('هل أنت متأكد تماماً؟ هذا هو التحذير الأخير!')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+
+{% endblock %}

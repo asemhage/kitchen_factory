@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة سياسات التسعير - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-tag"></i> إدارة سياسات تسعير الأصناف</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('material_pricing_wizard') }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-magic"></i> معالج السياسات المرن
+            </a>
+            <a href="{{ url_for('admin_tools') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- إحصائيات -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="text-muted">إجمالي الأصناف</h6>
+                <h3 class="mb-0">{{ total_materials }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h6>أسعار مقفلة</h6>
+                <h3 class="mb-0">{{ locked_prices }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6>تعديل يدوي مسموح</h6>
+                <h3 class="mb-0">{{ manual_override }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6>سياسة افتراضية</h6>
+                <h3 class="mb-0" style="font-size: 1.2rem;">
+                    {{ pricing_modes.get('purchase_price_default', 0) }}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- توزيع السياسات -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> توزيع سياسات التسعير</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for mode, count in pricing_modes.items() %}
+            <div class="col-md-4">
+                <div class="alert {% if mode == 'purchase_price_default' %}alert-primary{% elif mode == 'weighted_average' %}alert-success{% else %}alert-info{% endif %}">
+                    <h6>
+                        {% if mode == 'purchase_price_default' %}
+                        آخر سعر شراء (افتراضي)
+                        {% elif mode == 'weighted_average' %}
+                        متوسط مرجّح
+                        {% elif mode == 'last_invoice' %}
+                        آخر فاتورة
+                        {% else %}
+                        {{ mode }}
+                        {% endif %}
+                    </h6>
+                    <h4>{{ count }} صنف</h4>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- جدول الأصناف -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">قائمة الأصناف وسياسات التسعير</h5>
+    </div>
+    <div class="card-body p-0">
+        <form method="POST" action="{{ url_for('bulk_update_material_pricing') }}" id="bulkForm">
+            <div class="p-3 bg-light border-bottom">
+                <div class="row">
+                    <div class="col-md-4">
+                        <select class="form-select" name="action" id="bulkAction">
+                            <option value="">-- اختر عملية جماعية --</option>
+                            <option value="lock_all">قفل الأسعار المحددة</option>
+                            <option value="unlock_all">فتح الأسعار المحددة</option>
+                            <option value="change_mode">تغيير السياسة</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4" id="modeSelect" style="display:none;">
+                        <select class="form-select" name="new_mode">
+                            <option value="purchase_price_default">آخر سعر شراء</option>
+                            <option value="weighted_average">متوسط مرجّح</option>
+                            <option value="last_invoice">آخر فاتورة</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary" disabled id="bulkSubmit">
+                            <i class="fas fa-check"></i> تطبيق على المحدد
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>
+                                <input type="checkbox" id="selectAll">
+                            </th>
+                            <th>الصنف</th>
+                            <th>سعر التكلفة</th>
+                            <th>آخر سعر شراء</th>
+                            <th>السياسة</th>
+                            <th>حالة السعر</th>
+                            <th>آخر تحديث</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for material in materials %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="material_ids" value="{{ material.id }}" class="material-checkbox">
+                            </td>
+                            <td>
+                                <strong>{{ material.name }}</strong><br>
+                                <small class="text-muted">{{ material.unit }}</small>
+                            </td>
+                            <td>
+                                <strong class="text-primary">{{ '%.2f'|format(material.cost_price or 0) }}</strong>
+                            </td>
+                            <td>
+                                {{ '%.2f'|format(material.purchase_price or 0) }}
+                            </td>
+                            <td>
+                                {% if material.cost_price_mode == 'purchase_price_default' %}
+                                <span class="badge bg-primary">آخر سعر شراء</span>
+                                {% elif material.cost_price_mode == 'weighted_average' %}
+                                <span class="badge bg-success">متوسط مرجّح</span>
+                                {% elif material.cost_price_mode == 'last_invoice' %}
+                                <span class="badge bg-info">آخر فاتورة</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ material.cost_price_mode }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if material.price_locked %}
+                                <i class="fas fa-lock text-warning" title="مقفل"></i>
+                                {% else %}
+                                <i class="fas fa-lock-open text-success" title="مفتوح"></i>
+                                {% endif %}
+                                
+                                {% if material.allow_manual_price_edit %}
+                                <i class="fas fa-edit text-info" title="تعديل يدوي مسموح"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    {% if material.price_updated_at %}
+                                    {{ material.price_updated_at.strftime('%Y-%m-%d') }}
+                                    <br><span class="text-muted">{{ material.price_updated_by or '-' }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('edit_material_pricing', material_id=material.id) }}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Select all checkbox
+    $('#selectAll').change(function() {
+        $('.material-checkbox').prop('checked', this.checked);
+        updateBulkButton();
+    });
+
+    // Individual checkbox
+    $('.material-checkbox').change(function() {
+        updateBulkButton();
+    });
+
+    // Bulk action change
+    $('#bulkAction').change(function() {
+        if ($(this).val() === 'change_mode') {
+            $('#modeSelect').show();
+        } else {
+            $('#modeSelect').hide();
+        }
+        updateBulkButton();
+    });
+
+    function updateBulkButton() {
+        const checkedCount = $('.material-checkbox:checked').length;
+        const actionSelected = $('#bulkAction').val() !== '';
+        $('#bulkSubmit').prop('disabled', !(checkedCount > 0 && actionSelected));
+    }
+
+    // Confirm bulk action
+    $('#bulkForm').submit(function(e) {
+        const action = $('#bulkAction').val();
+        const count = $('.material-checkbox:checked').length;
+        let message = '';
+
+        if (action === 'lock_all') {
+            message = `هل أنت متأكد من قفل أسعار ${count} صنف؟`;
+        } else if (action === 'unlock_all') {
+            message = `هل أنت متأكد من فتح أسعار ${count} صنف؟`;
+        } else if (action === 'change_mode') {
+            message = `هل أنت متأكد من تغيير سياسة التسعير لـ ${count} صنف؟`;
+        }
+
+        if (!confirm(message)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}
+

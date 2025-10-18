@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}إضافة فني جديد{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">إضافة فني جديد</h2>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post" class="needs-validation" novalidate>
+                <div class="row">
+                    <!-- المعلومات الشخصية -->
+                    <div class="col-md-6">
+                        <h5 class="mb-3">المعلومات الشخصية</h5>
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">الاسم <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">رقم الهاتف</label>
+                            <input type="text" class="form-control" id="phone" name="phone" dir="ltr">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">البريد الإلكتروني</label>
+                            <input type="email" class="form-control" id="email" name="email" dir="ltr">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="national_id" class="form-label">رقم الهوية</label>
+                            <input type="text" class="form-control" id="national_id" name="national_id" dir="ltr">
+                        </div>
+                    </div>
+                    
+                    <!-- معلومات العمل والبنك -->
+                    <div class="col-md-6">
+                        <h5 class="mb-3">معلومات العمل والحساب</h5>
+                        
+                        <div class="mb-3">
+                            <label for="specialization" class="form-label">التخصص <span class="text-danger">*</span></label>
+                            <select class="form-select" id="specialization" name="specialization" required>
+                                <option value="" selected disabled>اختر التخصص...</option>
+                                <option value="تصنيع">تصنيع</option>
+                                <option value="تركيب">تركيب</option>
+                                <option value="كلاهما">كلاهما (تصنيع وتركيب)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="hire_date" class="form-label">تاريخ التعيين</label>
+                            <input type="date" class="form-control" id="hire_date" name="hire_date">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="bank_name" class="form-label">اسم البنك</label>
+                            <input type="text" class="form-control" id="bank_name" name="bank_name">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="bank_account" class="form-label">رقم الحساب البنكي</label>
+                            <input type="text" class="form-control" id="bank_account" name="bank_account" dir="ltr">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- إعدادات الأسعار -->
+                <hr>
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5 class="mb-3">إعدادات الأسعار</h5>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="manufacturing_rate" class="form-label">سعر متر التصنيع (د.ل)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="manufacturing_rate" name="manufacturing_rate" value="{{ default_manufacturing_rate }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="installation_rate" class="form-label">سعر متر التركيب (د.ل)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="installation_rate" name="installation_rate" value="{{ default_installation_rate }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ملاحظات -->
+                <div class="mb-3">
+                    <label for="notes" class="form-label">ملاحظات</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{{ url_for('technicians') }}" class="btn btn-outline-secondary me-md-2">إلغاء</a>
+                    <button type="submit" class="btn btn-primary">إضافة الفني</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // تفعيل التحقق من النموذج
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+</script>
+{% endblock %}

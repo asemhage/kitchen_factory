@@ -1,0 +1,96 @@
+
+{% extends "base.html" %}
+
+{% block title %}تعديل مادة - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">تعديل مادة</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('materials') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للمواد
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">بيانات المادة</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label for="name" class="form-label">اسم المادة</label>
+                <input type="text" class="form-control" id="name" name="name" value="{{ material.name }}" required>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="unit" class="form-label">وحدة القياس</label>
+                    <select class="form-select" id="unit" name="unit" required>
+                        <option value="">-- اختر وحدة القياس --</option>
+                        <option value="متر" {% if material.unit == 'متر' %}selected{% endif %}>متر</option>
+                        <option value="قطعة" {% if material.unit == 'قطعة' %}selected{% endif %}>قطعة</option>
+                        <option value="لتر" {% if material.unit == 'لتر' %}selected{% endif %}>لتر</option>
+                        <option value="كيلوجرام" {% if material.unit == 'كيلوجرام' %}selected{% endif %}>كيلوجرام</option>
+                        <option value="عبوة" {% if material.unit == 'عبوة' %}selected{% endif %}>عبوة</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="quantity" class="form-label">الكمية المتاحة</label>
+                    <input type="number" class="form-control" id="quantity" name="quantity" min="0" step="0.01" value="{{ material.quantity_available }}" required>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="warehouse_id" class="form-label">المخزن <span class="text-danger">*</span></label>
+                    <select class="form-select" id="warehouse_id" name="warehouse_id" required>
+                        <option value="">-- اختر المخزن --</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}" {% if material.warehouse_id == warehouse.id %}selected{% endif %}>
+                            {{ warehouse.name }}{% if warehouse.is_default %} (افتراضي){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">المخزن الذي تم تخزين المادة فيه</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="storage_location" class="form-label">موقع التخزين</label>
+                    <input type="text" class="form-control" id="storage_location" name="storage_location" value="{{ material.storage_location or '' }}" placeholder="مثال: رف A - صف 3">
+                    <div class="form-text">الموقع داخل المخزن (اختياري)</div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="min_quantity" class="form-label">الحد الأدنى للكمية</label>
+                    <input type="number" class="form-control" id="min_quantity" name="min_quantity" min="0" step="0.01" value="{{ material.min_quantity or 0 }}">
+                    <div class="form-text">عند الوصول لهذا الحد يظهر تنبيه</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="max_quantity" class="form-label">الحد الأقصى للكمية</label>
+                    <input type="number" class="form-control" id="max_quantity" name="max_quantity" min="0" step="0.01" value="{{ material.max_quantity or '' }}">
+                    <div class="form-text">السعة القصوى (اختياري)</div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="unit_price" class="form-label">سعر الوحدة</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="unit_price" name="unit_price" min="0" step="0.01" value="{{ material.unit_price }}" required>
+                                            <span class="input-group-text">دينار ليبي</span>
+                </div>
+                <div class="form-text">آخر تحديث للسعر: {{ material.price_updated_at.strftime('%Y-%m-%d %H:%M') if material.price_updated_at else 'غير محدد' }}</div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('materials') }}" class="btn btn-secondary">إلغاء</a>
+                <button type="submit" class="btn btn-primary">حفظ التغييرات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

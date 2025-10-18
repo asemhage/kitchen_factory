@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل الطلب #{{ order.id }} - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">تفاصيل الطلب #{{ order.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('orders') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للطلبات
+            </a>
+            {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+            <a href="{{ url_for('edit_order', order_id=order.id) }}" class="btn btn-sm btn-warning">
+                <i class="fas fa-edit"></i> تعديل
+            </a>
+            
+            <!-- أزرار إدارة المراحل لموظف الاستقبال -->
+            {% set design_stage = order.stages|selectattr("stage_name", "equalto", "تصميم")|first %}
+            {% set deposit_stage = order.stages|selectattr("stage_name", "equalto", "استلام العربون")|first %}
+            
+            <!-- زر إكتمال التصميم -->
+            {% if design_stage and design_stage.start_date and design_stage.progress < 100 %}
+            <form method="POST" action="{{ url_for('complete_design_stage', order_id=order.id) }}" style="display: inline-block;">
+                <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('هل أنت متأكد من إكتمال مرحلة التصميم؟ سيتم بدء مرحلة استلام العربون تلقائياً.')">
+                    <i class="fas fa-check"></i> إكتمال التصميم
+                </button>
+            </form>
+            {% endif %}
+            
+            <!-- زر استلام العربون (يقوم بإكتمال المرحلة وإصدار إيصال) -->
+            {% if design_stage and design_stage.progress == 100 and deposit_stage and deposit_stage.progress < 100 %}
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#receiveDepositModal">
+                <i class="fas fa-money-bill-wave"></i> استلام
+            </button>
+            {% endif %}
+            {% endif %}
+            {% if current_user.role in ['مدير', 'مسؤول إنتاج'] %}
+            <a href="{{ url_for('order_stages', order_id=order.id) }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-tasks"></i> المراحل
+            </a>
+            {% endif %}
+            {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول مخزن', 'مسؤول العمليات'] %}
+            <a href="{{ url_for('order_costs', order_id=order.id) }}" class="btn btn-sm btn-info">
+                <i class="fas fa-money-bill-wave"></i> التكاليف
+            </a>
+            <a href="{{ url_for('order_materials', order_id=order.id) }}" class="btn btn-sm btn-success">
+                <i class="fas fa-boxes"></i> إدارة المواد
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">معلومات الطلب</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>رقم الطلب:</strong> {{ order.id }}</p>
+                        <p><strong>تاريخ الطلب:</strong> {{ order.order_date.strftime('%Y-%m-%d') }}</p>
+                        <p><strong>تاريخ التسليم:</strong> {{ order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else 'لم يحدد بعد' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>عدد الأمتار:</strong> {{ order.meters }}</p>
+                        <p><strong>الحالة:</strong>
+                            {% if order.status == 'مفتوح' %}
+                            <span class="badge bg-info">{{ order.status }}</span>
+                            {% elif order.status == 'قيد التنفيذ' %}
+                            <span class="badge bg-warning">{{ order.status }}</span>
+                            {% elif order.status == 'مكتمل' %}
+                            <span class="badge bg-success">{{ order.status }}</span>
+                            {% elif order.status == 'مسلّم' %}
+                            <span class="badge bg-primary">{{ order.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ order.status }}</span>
+                            {% endif %}
+                        </p>
+                        
+                        <!-- المعلومات المالية -->
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <h6><strong>المعلومات المالية:</strong></h6>
+                            <p class="mb-1"><strong>قيمة الطلبية:</strong> {{ "%.2f"|format(order.total_value) }} دينار ليبي</p>
+                            <p class="mb-1"><strong>إجمالي المدفوعات:</strong> {{ "%.2f"|format(order.total_paid) }} دينار ليبي</p>
+                            <p class="mb-1"><strong>المبلغ المتبقي:</strong> 
+                                <span class="{% if order.remaining_amount <= 0 %}text-success{% else %}text-warning{% endif %}">
+                                    {{ "%.2f"|format(order.remaining_amount) }} دينار ليبي
+                                </span>
+                            </p>
+                            <p class="mb-0"><strong>حالة الدفع:</strong> 
+                                {% if order.payment_status == 'مدفوع بالكامل' %}
+                                <span class="badge bg-success">{{ order.payment_status }}</span>
+                                {% elif order.payment_status == 'مدفوع جزئياً' %}
+                                <span class="badge bg-warning">{{ order.payment_status }}</span>
+                                {% elif order.payment_status == 'غير مدفوع' %}
+                                <span class="badge bg-danger">{{ order.payment_status }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ order.payment_status }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        {% if current_user.role != 'موظف استقبال' %}
+                        <p class="mt-2"><strong>إجمالي التكاليف:</strong> {{ order.total_price }} دينار ليبي</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if order.notes %}
+                <div class="mb-3">
+                    <p><strong>ملاحظات:</strong> {{ order.notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">مراحل الطلب</h5>
+            </div>
+            <div class="card-body">
+                {% if order_stages %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>المرحلة</th>
+                                <th>الحالة</th>
+                                <th>التقدم</th>
+                                <th>الموظف المسؤول</th>
+                                <th>ملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stage in order_stages %}
+                            <tr>
+                                <td>{{ stage.stage_name }}</td>
+                                <td>
+                                    {% if stage.progress == 0 and not stage.start_date %}
+                                    <span class="badge bg-secondary">لم تبدأ</span>
+                                    {% elif stage.progress > 0 and stage.progress < 100 %}
+                                    <span class="badge bg-warning">قيد التنفيذ</span>
+                                    {% elif stage.progress == 100 %}
+                                    <span class="badge bg-success">مكتملة</span>
+                                    {% elif stage.start_date and stage.progress == 0 %}
+                                    <span class="badge bg-info">جاهزة للبدء</span>
+                                    {% else %}
+                                    <span class="badge bg-info">{{ stage.status or 'غير محدد' }}</span>
+                                    {% endif %}
+                                    
+                                    <!-- إشارات خاصة للمراحل لموظف الاستقبال -->
+                                    {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+                                        {% set design_stage = order.stages|selectattr("stage_name", "equalto", "تصميم")|first %}
+                                        {% set deposit_stage = order.stages|selectattr("stage_name", "equalto", "استلام العربون")|first %}
+                                        
+                                        {% if stage.stage_name == 'تصميم' and stage.start_date and stage.progress < 100 %}
+                                        <br><small class="text-primary"><i class="fas fa-check-circle"></i> يمكن الإكتمال</small>
+                                        {% elif stage.stage_name == 'استلام العربون' and design_stage and design_stage.progress == 100 and stage.progress < 100 %}
+                                        <br><small class="text-success"><i class="fas fa-money-bill-wave"></i> يمكن الاستلام</small>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" style="width: {{ stage.progress }}%"
+                                             aria-valuenow="{{ stage.progress }}" aria-valuemin="0" aria-valuemax="100">
+                                            {{ stage.progress }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ stage.assigned_to or 'لم يحدد بعد' }}</td>
+                                <td>{{ stage.notes or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted">لم يتم تحديد مراحل الإنتاج بعد</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">معلومات العميل</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>الاسم:</strong> {{ order.customer.name }}</p>
+                <p><strong>الهاتف:</strong> {{ order.customer.phone or 'لم يحدد' }}</p>
+                <p><strong>العنوان:</strong> {{ order.customer.address or 'لم يحدد' }}</p>
+                <p><strong>عدد الطلبات السابقة:</strong> {{ order.customer.orders|length - 1 }}</p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">الملفات المرفقة</h5>
+                {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+                    {% set deposit_stage = order.stages|selectattr("stage_name", "equalto", "استلام العربون")|first %}
+                    {% set can_manage_files = current_user.role == 'مدير' or (current_user.role == 'موظف استقبال' and (not deposit_stage or deposit_stage.progress < 100)) %}
+                    {% if can_manage_files %}
+                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addDocumentModal">
+                        <i class="fas fa-plus"></i> إضافة مرفق
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-sm btn-secondary" disabled title="لا يمكن إضافة مرفقات بعد استلام العربون">
+                        <i class="fas fa-lock"></i> مقفل
+                    </button>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if order.documents %}
+                <ul class="list-group">
+                    {% for document in order.documents %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>📎 {{ document.file_path.split('_', 3)[-1] if '_' in document.file_path else document.file_path }}</strong>
+                            <br><small class="text-muted">{{ document.file_path }}</small>
+                        </div>
+                        <div class="btn-group">
+                            <a href="{{ url_for('download_file', filename=document.file_path) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-download"></i> تحميل
+                            </a>
+                            {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+                                {% set deposit_stage = order.stages|selectattr("stage_name", "equalto", "استلام العربون")|first %}
+                                {% set can_manage_files = current_user.role == 'مدير' or (current_user.role == 'موظف استقبال' and (not deposit_stage or deposit_stage.progress < 100)) %}
+                                {% if can_manage_files %}
+                                <form method="POST" action="{{ url_for('delete_document', order_id=order.id, document_id=document.id) }}" style="display: inline-block;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('هل أنت متأكد من حذف هذا المرفق؟')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-secondary" disabled title="لا يمكن حذف مرفقات بعد استلام العربون">
+                                    <i class="fas fa-lock"></i>
+                                </button>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-center text-muted">لا توجد ملفات مرفقة</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- قسم المدفوعات -->
+        {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">المدفوعات</h5>
+                {% if order.remaining_amount > 0 %}
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+                    <i class="fas fa-plus"></i> إضافة دفعة
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if order.payments %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>التاريخ</th>
+                                <th>النوع</th>
+                                <th>المبلغ</th>
+                                <th>الطريقة</th>
+                                <th>المستلم</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in order.payments %}
+                            <tr>
+                                <td>{{ payment.payment_date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if payment.payment_type == 'عربون' %}
+                                    <span class="badge bg-success">{{ payment.payment_type }}</span>
+                                    {% else %}
+                                    <span class="badge bg-info">{{ payment.payment_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ "%.2f"|format(payment.amount) }} دينار ليبي</strong></td>
+                                <td>{{ payment.payment_method }}</td>
+                                <td>{{ payment.received_by }}</td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="table-active">
+                                <td colspan="2"><strong>الإجمالي</strong></td>
+                                <td><strong>{{ "%.2f"|format(order.total_paid) }} دينار ليبي</strong></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted">لا توجد مدفوعات مسجلة</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- قسم المواد - التصميم الأفقي المختصر -->
+        {% if current_user.role != 'موظف استقبال' %}
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-boxes"></i> إدارة المواد │ استخدم النظام الجديد للمواد
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- المميزات الأفقية -->
+                <div class="row text-center mb-3">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded">
+                            <i class="fas fa-bolt fa-2x text-warning mb-2"></i>
+                            <h6 class="mb-0">خصم تلقائي</h6>
+                            <small class="text-muted">فوري من المخزون</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded">
+                            <i class="fas fa-chart-line fa-2x text-info mb-2"></i>
+                            <h6 class="mb-0">تتبع النقص</h6>
+                            <small class="text-muted">دقيق ومفصل</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded">
+                            <i class="fas fa-sync-alt fa-2x text-success mb-2"></i>
+                            <h6 class="mb-0">إدارة ذكية</h6>
+                            <small class="text-muted">للنقص والإكمال</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- الأزرار -->
+                {% if current_user.role in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
+                <div class="text-center mb-4">
+                    <a href="{{ url_for('order_materials', order_id=order.id) }}" class="btn btn-primary btn-lg me-2">
+                        <i class="fas fa-boxes"></i> إدارة المواد للطلبية
+                    </a>
+                    <a href="{{ url_for('shortage_materials_list') }}" class="btn btn-outline-warning btn-lg">
+                        <i class="fas fa-exclamation-triangle"></i> عرض المواد الناقصة
+                    </a>
+                </div>
+                {% endif %}
+                
+                <!-- الجدول - سجل الاستهلاك السابق -->
+                {% if material_consumptions %}
+                <hr class="my-3">
+                <h6 class="text-muted mb-3">
+                    <i class="fas fa-history"></i> سجل الاستهلاك السابق:
+                </h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>المادة</th>
+                                <th>الكمية</th>
+                                <th>سعر الوحدة</th>
+                                <th>المرحلة</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consumption in material_consumptions %}
+                            <tr>
+                                <td><strong>{{ consumption.material.name }}</strong></td>
+                                <td>{{ consumption.quantity_used }} {{ consumption.material.unit }}</td>
+                                <td>{{ consumption.unit_price }} دينار ليبي</td>
+                                <td><span class="badge bg-secondary">{{ consumption.stage.stage_name }}</span></td>
+                                <td>{{ consumption.batch_date }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info text-center mt-3">
+                    <i class="fas fa-info-circle"></i>
+                    لا يوجد سجل استهلاك سابق لهذه الطلبية
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal لإضافة مرفق جديد -->
+{% if current_user.role in ['مدير', 'موظف استقبال'] %}
+<div class="modal fade" id="addDocumentModal" tabindex="-1" aria-labelledby="addDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addDocumentModalLabel">إضافة مرفق جديد</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addDocumentForm" method="POST" action="{{ url_for('add_document', order_id=order.id) }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">اختر ملف</label>
+                        <input type="file" class="form-control" id="file" name="file" required accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+                        <div class="form-text">الأنواع المدعومة: الصور، PDF، Word، Excel، النصوص (الحد الأقصى: 16 ميجابايت)</div>
+                    </div>
+                    
+                    {% set deposit_stage = order.stages|selectattr("stage_name", "equalto", "استلام العربون")|first %}
+                    {% if current_user.role == 'موظف استقبال' and deposit_stage and deposit_stage.progress == 100 %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-lock"></i> لا يمكن إضافة مرفقات بعد استلام العربون
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-success" id="saveDocumentBtn">
+                    <i class="fas fa-upload"></i> رفع الملف
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal لاستلام العربون -->
+{% if current_user.role in ['مدير', 'موظف استقبال'] %}
+<div class="modal fade" id="receiveDepositModal" tabindex="-1" aria-labelledby="receiveDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="receiveDepositModalLabel">استلام العربون</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="receiveDepositForm" method="POST" action="{{ url_for('receive_deposit', order_id=order.id) }}">
+                    <div class="alert alert-info">
+                        <strong>قيمة الطلبية:</strong> {{ "%.2f"|format(order.total_value) }} دينار ليبي<br>
+                        <strong>المبلغ المتبقي:</strong> {{ "%.2f"|format(order.remaining_amount) }} دينار ليبي
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="deposit_amount" class="form-label">مبلغ العربون</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="deposit_amount" name="deposit_amount" min="1" step="0.01" max="{{ order.total_value }}" required>
+                            <span class="input-group-text">دينار ليبي</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_method" class="form-label">طريقة الدفع</label>
+                        <select class="form-select" id="payment_method" name="payment_method">
+                            <option value="نقد">نقد</option>
+                            <option value="بنك">تحويل بنكي</option>
+                            <option value="شيك">شيك</option>
+                            <option value="كارت">بطاقة ائتمان</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_notes" class="form-label">ملاحظات</label>
+                        <textarea class="form-control" id="payment_notes" name="payment_notes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-success" id="saveDepositBtn">
+                    <i class="fas fa-money-bill-wave"></i> استلام وإصدار إيصال
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal لإضافة دفعة جديدة -->
+<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-labelledby="addPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addPaymentModalLabel">إضافة دفعة جديدة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addPaymentForm" method="POST" action="{{ url_for('add_payment', order_id=order.id) }}">
+                    <div class="alert alert-info">
+                        <strong>قيمة الطلبية:</strong> {{ "%.2f"|format(order.total_value) }} دينار ليبي<br>
+                        <strong>إجمالي المدفوعات:</strong> {{ "%.2f"|format(order.total_paid) }} دينار ليبي<br>
+                        <strong>المبلغ المتبقي:</strong> {{ "%.2f"|format(order.remaining_amount) }} دينار ليبي
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">مبلغ الدفعة</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="amount" name="amount" min="1" step="0.01" max="{{ order.remaining_amount }}" required>
+                            <span class="input-group-text">دينار ليبي</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_type" class="form-label">نوع الدفعة</label>
+                        <select class="form-select" id="payment_type" name="payment_type">
+                            <option value="دفعة">دفعة</option>
+                            <option value="باقي المبلغ">باقي المبلغ</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_method_new" class="form-label">طريقة الدفع</label>
+                        <select class="form-select" id="payment_method_new" name="payment_method">
+                            <option value="نقد">نقد</option>
+                            <option value="بنك">تحويل بنكي</option>
+                            <option value="شيك">شيك</option>
+                            <option value="كارت">بطاقة ائتمان</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_notes_new" class="form-label">ملاحظات</label>
+                        <textarea class="form-control" id="payment_notes_new" name="payment_notes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">
+                    <i class="fas fa-plus"></i> إضافة دفعة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal لإضافة مادة - مخفي عن موظف الاستقبال -->
+{% if current_user.role != 'موظف استقبال' %}
+<!-- النموذج القديم تم حذفه - استخدم النظام الجديد في /order/<id>/materials -->
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // تعيين تاريخ اليوم كافتراضي لتاريخ الاستهلاك
+        $('#batch_date').val(new Date().toISOString().split('T')[0]);
+
+        // عند تغيير المادة المختارة
+        $('#material_id').change(function() {
+            var materialId = $(this).val();
+            if (materialId) {
+                // الحصول على سعر الوحدة للمادة المختارة
+                $.ajax({
+                    url: '/api/material/' + materialId + '/price',
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.success) {
+                            $('#unit_price').val(response.unit_price);
+                        }
+                    },
+                    error: function() {
+                        console.log('حدث خطأ في جلب سعر المادة');
+                    }
+                });
+            }
+        });
+
+        // عند حفظ المادة المستهلكة
+        $('#saveMaterialBtn').click(function() {
+            $('#addMaterialForm').submit();
+        });
+        
+        // معالج لنافذة إضافة المرفقات
+        $('#saveDocumentBtn').click(function() {
+            // التحقق من اختيار ملف
+            const fileInput = $('#file')[0];
+            if (!fileInput.files.length) {
+                alert('يرجى اختيار ملف أولاً');
+                return;
+            }
+            
+            // التحقق من حجم الملف (16 ميجابايت = 16 * 1024 * 1024 بايت)
+            const maxSize = 16 * 1024 * 1024;
+            if (fileInput.files[0].size > maxSize) {
+                alert('حجم الملف كبير جداً. الحد الأقصى المسموح: 16 ميجابايت');
+                return;
+            }
+            
+            $('#addDocumentForm').submit();
+        });
+        
+        // إظهار تقدم الرفع
+        $('#addDocumentForm').submit(function() {
+            $('#saveDocumentBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الرفع...');
+        });
+        
+        // معالج لاستلام العربون
+        $('#saveDepositBtn').click(function() {
+            const amount = parseFloat($('#deposit_amount').val());
+            const maxAmount = parseFloat('{{ order.total_value }}');
+            
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال مبلغ العربون');
+                return;
+            }
+            
+            if (amount > maxAmount) {
+                alert('مبلغ العربون لا يمكن أن يكون أكبر من قيمة الطلبية');
+                return;
+            }
+            
+            if (confirm(`هل أنت متأكد من استلام عربون بقيمة ${amount} دينار ليبي؟ سيتم إصدار إيصال قبض.`)) {
+                $('#receiveDepositForm').submit();
+            }
+        });
+        
+        // معالج لإضافة دفعة جديدة
+        $('#savePaymentBtn').click(function() {
+            const amount = parseFloat($('#amount').val());
+            const maxAmount = parseFloat('{{ order.remaining_amount }}');
+            
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال مبلغ الدفعة');
+                return;
+            }
+            
+            if (amount > maxAmount) {
+                alert('مبلغ الدفعة لا يمكن أن يكون أكبر من المبلغ المتبقي');
+                return;
+            }
+            
+            $('#addPaymentForm').submit();
+        });
+        
+        // تحديث نوع الدفعة تلقائياً عند إدخال المبلغ الكامل
+        $('#amount').on('input', function() {
+            const amount = parseFloat($(this).val());
+            const remainingAmount = parseFloat('{{ order.remaining_amount }}');
+            
+            if (amount === remainingAmount) {
+                $('#payment_type').val('باقي المبلغ');
+            } else {
+                $('#payment_type').val('دفعة');
+            }
+        });
+    });
+
+    // فتح PDF تلقائياً بعد استلام العربون
+    $(document).ready(function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const receiptFile = urlParams.get('print_receipt');
+        
+        if (receiptFile) {
+            // فتح PDF في نافذة جديدة
+            const pdfUrl = "{{ url_for('download_receipt', filename='PLACEHOLDER') }}".replace('PLACEHOLDER', receiptFile);
+            window.open(pdfUrl, '_blank');
+            
+            // إزالة المعامل من URL لتجنب فتح PDF مرة أخرى عند التحديث
+            const newUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, newUrl);
+        }
+    });
+</script>
+{% endblock %}

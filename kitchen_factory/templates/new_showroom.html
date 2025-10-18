@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}إضافة صالة جديدة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-store"></i>
+            إضافة صالة جديدة
+        </h2>
+        <a href="{{ url_for('showrooms_list') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i>
+            رجوع
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">بيانات الصالة</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('new_showroom') }}">
+                        <!-- اسم الصالة -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label">
+                                اسم الصالة <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   placeholder="مثال: صالة الزاوية - فرع طرابلس"
+                                   required>
+                            <small class="form-text text-muted">
+                                اسم فريد للصالة (يجب ألا يتكرر)
+                            </small>
+                        </div>
+
+                        <!-- كود الصالة -->
+                        <div class="mb-3">
+                            <label for="code" class="form-label">
+                                كود الصالة
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="code" 
+                                   name="code" 
+                                   placeholder="مثال: ZW-TRP"
+                                   maxlength="20">
+                            <small class="form-text text-muted">
+                                كود قصير للصالة (اختياري، ولكن يجب أن يكون فريداً إذا تم إدخاله)
+                            </small>
+                        </div>
+
+                        <!-- اسم المدير -->
+                        <div class="mb-3">
+                            <label for="manager_name" class="form-label">
+                                اسم مدير الصالة
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="manager_name" 
+                                   name="manager_name" 
+                                   placeholder="مثال: أحمد محمد">
+                            <small class="form-text text-muted">
+                                اسم المسؤول عن الصالة (اختياري)
+                            </small>
+                        </div>
+
+                        <!-- رقم الهاتف -->
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">
+                                رقم الهاتف
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="phone" 
+                                   name="phone" 
+                                   placeholder="مثال: 0912345678"
+                                   maxlength="20">
+                            <small class="form-text text-muted">
+                                رقم الهاتف للتواصل (اختياري)
+                            </small>
+                        </div>
+
+                        <!-- العنوان -->
+                        <div class="mb-3">
+                            <label for="address" class="form-label">
+                                العنوان
+                            </label>
+                            <textarea class="form-control" 
+                                      id="address" 
+                                      name="address" 
+                                      rows="2"
+                                      placeholder="مثال: طرابلس - شارع الجمهورية - بجانب البنك المركزي"></textarea>
+                            <small class="form-text text-muted">
+                                عنوان الصالة الكامل (اختياري)
+                            </small>
+                        </div>
+
+                        <!-- ملاحظات -->
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">
+                                ملاحظات
+                            </label>
+                            <textarea class="form-control" 
+                                      id="notes" 
+                                      name="notes" 
+                                      rows="3"
+                                      placeholder="أي ملاحظات إضافية عن الصالة..."></textarea>
+                        </div>
+
+                        <!-- حالة الصالة -->
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" 
+                                   class="form-check-input" 
+                                   id="is_active" 
+                                   name="is_active"
+                                   checked>
+                            <label class="form-check-label" for="is_active">
+                                تفعيل الصالة (السماح بالعمل عليها)
+                            </label>
+                        </div>
+
+                        <hr>
+
+                        <!-- أزرار الحفظ والإلغاء -->
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ url_for('showrooms_list') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i>
+                                إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                حفظ الصالة
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i>
+                        معلومات
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6>
+                        <i class="fas fa-check-circle text-success"></i>
+                        الحقول المطلوبة:
+                    </h6>
+                    <ul>
+                        <li>اسم الصالة</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>
+                        <i class="fas fa-lightbulb text-warning"></i>
+                        نصائح:
+                    </h6>
+                    <ul class="small">
+                        <li>اختر اسماً واضحاً ومميزاً للصالة</li>
+                        <li>الكود القصير يساعد في التعرف السريع على الصالة</li>
+                        <li>تأكد من صحة رقم الهاتف والعنوان</li>
+                        <li>يمكنك تعطيل الصالة لاحقاً إذا لزم الأمر</li>
+                    </ul>
+
+                    <hr>
+
+                    <div class="alert alert-warning mb-0 small">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>تنبيه:</strong>
+                        بعد إنشاء الصالة، يمكنك إضافة موظفين لها من صفحة إدارة المستخدمين.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .gap-2 {
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+

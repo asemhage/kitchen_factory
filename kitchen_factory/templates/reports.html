@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}التقارير{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">التقارير</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">تقارير الطلبات</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">طلبات حسب الحالة</h5>
+                            <p class="card-text">عرض تقرير عن الطلبات مقسمة حسب حالتها الحالية.</p>
+                            <a href="{{ url_for('orders_by_status_report') }}" class="btn btn-primary">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">الطلبات المتأخرة</h5>
+                            <p class="card-text">عرض تقرير عن الطلبات التي تجاوزت موعدها النهائي.</p>
+                            <a href="{{ url_for('overdue_orders_report') }}" class="btn btn-primary">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">تقارير المواد</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">المواد المستهلكة</h5>
+                            <p class="card-text">عرض تقرير عن المواد المستهلكة في جميع الطلبات.</p>
+                            <a href="{{ url_for('materials_consumption_report') }}" class="btn btn-success">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">المواد المنخفضة</h5>
+                            <p class="card-text">عرض تقرير عن المواد التي وصلت لحدودها الدنيا.</p>
+                            <a href="{{ url_for('low_materials_report') }}" class="btn btn-success">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">تقارير مالية</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">تكاليف الطلبات</h5>
+                            <p class="card-text">عرض تقرير عن تكاليف جميع الطلبات.</p>
+                            <a href="{{ url_for('orders_costs_report') }}" class="btn btn-info">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">التكاليف حسب النوع</h5>
+                            <p class="card-text">عرض تقرير عن التكاليف مقسمة حسب نوعها.</p>
+                            <a href="{{ url_for('costs_by_type_report') }}" class="btn btn-info">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">تقارير المهام</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">المهام المتأخرة</h5>
+                            <p class="card-text">عرض تقرير عن المهام المتأخرة في مراحل الطلبات.</p>
+                            <a href="{{ url_for('overdue_tasks_report') }}" class="btn btn-warning">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="fas fa-truck"></i> تقارير الموردين</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-file-invoice-dollar"></i> ديون الموردين</h5>
+                            <p class="card-text">عرض تقرير شامل عن إجمالي المديونية لكل مورد.</p>
+                            <a href="{{ url_for('suppliers_debts_report') }}" class="btn btn-danger">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> الفواتير المتأخرة</h5>
+                            <p class="card-text">عرض تقرير عن الفواتير التي تجاوزت تاريخ الاستحقاق.</p>
+                            <a href="{{ url_for('overdue_invoices_report') }}" class="btn btn-warning">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-chart-line"></i> أداء الموردين</h5>
+                            <p class="card-text">عرض تقرير تفصيلي عن إحصائيات الشراء والدفع لكل مورد.</p>
+                            <a href="{{ url_for('suppliers_performance_report') }}" class="btn btn-success">عرض التقرير</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تقارير متقدمة -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-area"></i> تقارير متقدمة</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-balance-scale"></i> ربحية الصالات</h5>
+                            <p class="card-text">تقرير شامل عن الإيرادات والتكاليف والربح الصافي لكل صالة مع رسوم بيانية مقارنة.</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('showroom_profitability_report') }}" class="btn btn-primary">
+                                    <i class="fas fa-chart-line"></i> عرض التقرير
+                                </a>
+                                <span class="badge bg-primary">للمديرين فقط</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-sync-alt"></i> دوران المخزون</h5>
+                            <p class="card-text">تحليل معدل دوران المواد والمواد السريعة/البطيئة الحركة مع توصيات الشراء.</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('inventory_turnover_report') }}" class="btn btn-info">
+                                    <i class="fas fa-boxes"></i> عرض التقرير
+                                </a>
+                                <span class="badge bg-info">مدير + مخزن</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-star"></i> أداء المنتجات</h5>
+                            <p class="card-text">تقرير عن أكثر المواد طلباً وربحيتها مع تحليل الاستهلاك الشهري.</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('product_performance_report') }}" class="btn btn-success">
+                                    <i class="fas fa-trophy"></i> عرض التقرير
+                                </a>
+                                <span class="badge bg-success">مدير + إنتاج</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

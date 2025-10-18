@@ -1,0 +1,601 @@
+{% extends 'base.html' %}
+
+{% block title %}إحصائيات الأرشيف{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-chart-bar text-primary"></i> إحصائيات الأرشيف المفصلة</h2>
+                <div class="btn-group">
+                    <a href="{{ url_for('archive_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> العودة للوحة الأرشيف
+                    </a>
+                    <button class="btn btn-outline-primary" onclick="refreshStats()">
+                        <i class="fas fa-sync-alt"></i> تحديث
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ملخص الإحصائيات العامة -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center bg-primary text-white">
+                <div class="card-body">
+                    <i class="fas fa-database fa-2x mb-2"></i>
+                    <h4>{{ stats.totals.total_archived_records or 0 }}</h4>
+                    <p class="mb-0">إجمالي السجلات المؤرشفة</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                    <i class="fas fa-hdd fa-2x mb-2"></i>
+                    <h4>{{ "%.1f"|format(stats.totals.total_size_mb or 0) }} MB</h4>
+                    <p class="mb-0">حجم البيانات المؤرشفة</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-info text-white">
+                <div class="card-body">
+                    <i class="fas fa-calendar fa-2x mb-2"></i>
+                    <h4>{{ stats.totals.active_schedules or 0 }}</h4>
+                    <p class="mb-0">جداول الأرشفة النشطة</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-warning text-dark">
+                <div class="card-body">
+                    <i class="fas fa-clock fa-2x mb-2"></i>
+                    <h4>{{ stats.totals.pending_archive or 0 }}</h4>
+                    <p class="mb-0">في انتظار الأرشفة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- الرسوم البيانية والإحصائيات التفصيلية -->
+    <div class="row">
+        <!-- توزيع البيانات المؤرشفة -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-pie-chart"></i> توزيع البيانات المؤرشفة</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="archiveDistributionChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- أداء العمليات -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-line"></i> أداء العمليات (آخر 30 يوم)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="operationsChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- إحصائيات الجداول التفصيلية -->
+        <div class="col-md-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-table"></i> إحصائيات الجداول التفصيلية</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>الجدول</th>
+                                    <th>السجلات المؤرشفة</th>
+                                    <th>الحجم (MB)</th>
+                                    <th>آخر أرشفة</th>
+                                    <th>آخر استعادة</th>
+                                    <th>معدل النجاح</th>
+                                    <th>متوسط عمر الأرشيف (أيام)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for table_name, table_data in stats.tables.items() %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-{{ get_table_icon(table_name) or 'table' }}"></i>
+                                        <strong>{{ get_table_display_name(table_name) or table_name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ table_data.total_archived or 0 }}</span>
+                                    </td>
+                                    <td>{{ "%.2f"|format(table_data.total_size_mb or 0) }}</td>
+                                    <td>
+                                        {% if table_data.last_archive_date %}
+                                            <small class="text-muted">{{ table_data.last_archive_date.strftime('%Y-%m-%d') }}</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if table_data.get('last_restore_date') %}
+                                            <small class="text-info">{{ table_data.last_restore_date.strftime('%Y-%m-%d') }}</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set success_rate = table_data.success_rate or 100 %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar {% if success_rate >= 95 %}bg-success{% elif success_rate >= 80 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ success_rate }}%"
+                                                 title="{{ '%.1f'|format(success_rate) }}%">
+                                                {{ "%.1f"|format(success_rate) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if table_data.get('average_archive_age_days') %}
+                                            {{ table_data.average_archive_age_days }} يوم
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">لا توجد بيانات إحصائية متاحة</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- إحصائيات العمليات -->
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cogs"></i> ملخص العمليات</h5>
+                </div>
+                <div class="card-body">
+                    {% if stats.operations %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>النوع</th>
+                                    <th>الحالة</th>
+                                    <th>العدد</th>
+                                    <th>المتوسط</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for op in stats.operations %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-{{ get_operation_icon(op.operation_type) or 'cog' }}"></i>
+                                        <small>{{ get_operation_display_name(op.operation_type) or op.operation_type }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-sm {% if op.status == 'completed' %}bg-success{% elif op.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ get_status_display_name(op.status) or op.status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ op.count or 0 }}</td>
+                                    <td>
+                                        {% if op.avg_duration %}
+                                            <small>{{ "%.1f"|format(op.avg_duration) }}s</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-info-circle"></i>
+                        <p class="mt-2 mb-0">لا توجد إحصائيات عمليات متاحة</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- إحصائيات الاستخدام -->
+    {% if stats.usage %}
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-area"></i> استخدام النظام (آخر 30 يوم)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="usageChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- معلومات تقنية إضافية -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> معلومات النظام</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-6">إجمالي السجلات المؤرشفة:</dt>
+                        <dd class="col-sm-6">{{ stats.totals.total_archived_records or 0 }}</dd>
+                        
+                        <dt class="col-sm-6">حجم البيانات المؤرشفة:</dt>
+                        <dd class="col-sm-6">{{ "%.2f"|format(stats.totals.total_size_mb or 0) }} MB</dd>
+                        
+                        <dt class="col-sm-6">الجداول النشطة:</dt>
+                        <dd class="col-sm-6">{{ stats.tables|length }}</dd>
+                        
+                        <dt class="col-sm-6">آخر تحديث:</dt>
+                        <dd class="col-sm-6">{{ datetime.now().strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-lightbulb"></i> التوصيات</h5>
+                </div>
+                <div class="card-body">
+                    <div id="recommendations">
+                        {% set total_size = stats.totals.total_size_mb or 0 %}
+                        {% set pending_count = stats.totals.pending_archive or 0 %}
+                        
+                        {% if total_size > 1000 %}
+                        <div class="alert alert-warning alert-sm">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>تنبيه:</strong> حجم الأرشيف أكبر من 1 GB. فكر في ضغط البيانات أو نقلها لخادم منفصل.
+                        </div>
+                        {% endif %}
+                        
+                        {% if pending_count > 100 %}
+                        <div class="alert alert-info alert-sm">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>اقتراح:</strong> يوجد {{ pending_count }} سجل في انتظار الأرشفة. قم بتشغيل الأرشفة التلقائية.
+                        </div>
+                        {% endif %}
+                        
+                        {% if stats.tables|length == 0 %}
+                        <div class="alert alert-light alert-sm">
+                            <i class="fas fa-info-circle"></i>
+                            لا توجد بيانات مؤرشفة حتى الآن. سيتم عرض الإحصائيات عند بدء الأرشفة.
+                        </div>
+                        {% else %}
+                        <div class="alert alert-success alert-sm">
+                            <i class="fas fa-check-circle"></i>
+                            نظام الأرشفة يعمل بكفاءة. {{ stats.totals.total_archived_records or 0 }} سجل مؤرشف بنجاح.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// رسم بياني لتوزيع البيانات المؤرشفة
+function createDistributionChart() {
+    const ctx = document.getElementById('archiveDistributionChart').getContext('2d');
+    
+    const labels = [];
+    const data = [];
+    const colors = ['#0d6efd', '#198754', '#0dcaf0', '#ffc107', '#dc3545', '#6f42c1'];
+    
+    {% for table_name, table_data in stats.tables.items() %}
+    labels.push('{{ get_table_display_name(table_name) or table_name }}');
+    data.push({{ table_data.total_archived or 0 }});
+    {% endfor %}
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return context.label + ': ' + context.parsed + ' سجل (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// رسم بياني لأداء العمليات
+function createOperationsChart() {
+    const ctx = document.getElementById('operationsChart').getContext('2d');
+    
+    const operations = {};
+    {% for op in stats.operations %}
+    const opType = '{{ get_operation_display_name(op.operation_type) or op.operation_type }}';
+    if (!operations[opType]) {
+        operations[opType] = { completed: 0, failed: 0 };
+    }
+    operations[opType]['{{ op.status }}'] = {{ op.count or 0 }};
+    {% endfor %}
+    
+    const labels = Object.keys(operations);
+    const completedData = labels.map(label => operations[label].completed || 0);
+    const failedData = labels.map(label => operations[label].failed || 0);
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'مكتملة',
+                    data: completedData,
+                    backgroundColor: '#198754',
+                    borderColor: '#198754',
+                    borderWidth: 1
+                },
+                {
+                    label: 'فاشلة',
+                    data: failedData,
+                    backgroundColor: '#dc3545',
+                    borderColor: '#dc3545',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            }
+        }
+    });
+}
+
+// رسم بياني لاستخدام النظام
+function createUsageChart() {
+    const ctx = document.getElementById('usageChart');
+    if (!ctx) return;
+    
+    const dates = [];
+    const searchData = [];
+    const restoreData = [];
+    
+    {% for usage in stats.usage %}
+    const date = '{{ usage.date }}';
+    if (!dates.includes(date)) {
+        dates.push(date);
+        searchData.push(0);
+        restoreData.push(0);
+    }
+    const index = dates.indexOf(date);
+    if ('{{ usage.operation_type }}' === 'search') {
+        searchData[index] = {{ usage.count }};
+    } else if ('{{ usage.operation_type }}' === 'restore') {
+        restoreData[index] = {{ usage.count }};
+    }
+    {% endfor %}
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'عمليات البحث',
+                    data: searchData,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'عمليات الاستعادة',
+                    data: restoreData,
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            }
+        }
+    });
+}
+
+// دوال مساعدة
+function getTableIcon(tableName) {
+    const icons = {
+        'orders': 'shopping-cart',
+        'stages': 'tasks',
+        'technician_due': 'hard-hat',
+        'audit_log': 'shield-alt'
+    };
+    return icons[tableName] || 'table';
+}
+
+function getTableDisplayName(tableName) {
+    const names = {
+        'orders': 'الطلبيات',
+        'stages': 'مراحل الطلبيات', 
+        'technician_due': 'مستحقات الفنيين',
+        'audit_log': 'سجل التدقيق'
+    };
+    return names[tableName] || tableName;
+}
+
+function getOperationIcon(operationType) {
+    const icons = {
+        'archive': 'archive',
+        'restore': 'undo',
+        'search': 'search',
+        'delete': 'trash',
+        'verify': 'check-circle'
+    };
+    return icons[operationType] || 'cog';
+}
+
+function getOperationDisplayName(operationType) {
+    const names = {
+        'archive': 'أرشفة',
+        'restore': 'استعادة',
+        'search': 'بحث',
+        'delete': 'حذف',
+        'verify': 'تحقق'
+    };
+    return names[operationType] || operationType;
+}
+
+function getStatusDisplayName(status) {
+    const names = {
+        'completed': 'مكتمل',
+        'failed': 'فاشل',
+        'running': 'قيد التشغيل',
+        'cancelled': 'ملغي'
+    };
+    return names[status] || status;
+}
+
+function refreshStats() {
+    location.reload();
+}
+
+// إعداد الرسوم البيانية عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    createDistributionChart();
+    createOperationsChart();
+    {% if stats.usage %}
+    createUsageChart();
+    {% endif %}
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.alert-sm {
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875em;
+}
+
+.badge-sm {
+    font-size: 0.65em;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.table-sm th,
+.table-sm td {
+    padding: 0.3rem;
+    font-size: 0.85em;
+}
+
+dl.row dt {
+    font-weight: 600;
+    color: #495057;
+}
+
+dl.row dd {
+    color: #6c757d;
+}
+
+canvas {
+    max-height: 300px;
+}
+
+.text-primary { color: #0d6efd !important; }
+.text-success { color: #198754 !important; }
+.text-info { color: #0dcaf0 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-danger { color: #dc3545 !important; }
+
+.bg-primary { background-color: #0d6efd !important; }
+.bg-success { background-color: #198754 !important; }
+.bg-info { background-color: #0dcaf0 !important; }
+.bg-warning { background-color: #ffc107 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

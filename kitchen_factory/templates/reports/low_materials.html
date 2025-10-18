@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير المواد المنخفضة{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">تقرير المواد المنخفضة</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">المواد التي وصلت لحدودها الدنيا (أقل من 10 وحدات)</h5>
+        </div>
+        <div class="card-body">
+            {% if low_materials %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> تم العثور على {{ low_materials|length }} مادة منخفضة
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>المادة</th>
+                            <th>الكمية المتاحة</th>
+                            <th>الوحدة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for material in low_materials %}
+                        <tr>
+                            <td>{{ material.name }}</td>
+                            <td>{{ "%.2f"|format(material.quantity_available) }}</td>
+                            <td>{{ material.unit }}</td>
+                            <td>
+                                <a href="{{ url_for('edit_material', material_id=material.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i> تعديل
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4">
+                <canvas id="lowMaterialsChart" width="400" height="200"></canvas>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> جميع المواد متوفرة بكميات كافية
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('reports') }}" class="btn btn-secondary">العودة إلى صفحة التقارير</a>
+        <a href="{{ url_for('materials') }}" class="btn btn-info">عرض جميع المواد</a>
+        <button class="btn btn-primary" onclick="window.print()">طباعة التقرير</button>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('lowMaterialsChart').getContext('2d');
+
+        const labels = [];
+        const data = [];
+
+        {% for material in low_materials %}
+            labels.push('{{ material.name }}');
+            data.push({{ material.quantity_available }});
+        {% endfor %}
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'الكمية المتاحة',
+                    data: data,
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 10,
+                        title: {
+                            display: true,
+                            text: 'الكمية'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'المادة'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'المواد المنخفضة'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل إعداد - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-edit"></i> تعديل إعداد: {{ setting.key }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('system_settings_list') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">المفتاح</label>
+                        <input type="text" class="form-control" value="{{ setting.key }}" readonly disabled>
+                        <small class="form-text text-muted">لا يمكن تعديل المفتاح</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="value" class="form-label">القيمة <span class="text-danger">*</span></label>
+                        {% if setting.value_type == 'bool' %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="true" {% if setting.value and setting.value.lower() in ['true', '1', 'yes'] %}selected{% endif %}>نعم (True)</option>
+                            <option value="false" {% if not setting.value or setting.value.lower() in ['false', '0', 'no'] %}selected{% endif %}>لا (False)</option>
+                        </select>
+                        
+                        {% elif setting.key == 'default_cost_price_mode' %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="purchase_price_default" {% if setting.value == 'purchase_price_default' %}selected{% endif %}>
+                                آخر سعر شراء (افتراضي)
+                            </option>
+                            <option value="weighted_average" {% if setting.value == 'weighted_average' %}selected{% endif %}>
+                                متوسط مرجّح
+                            </option>
+                            <option value="last_invoice" {% if setting.value == 'last_invoice' %}selected{% endif %}>
+                                آخر فاتورة
+                            </option>
+                        </select>
+                        <small class="form-text text-muted">
+                            سياسة التسعير الافتراضية التي سيتم تطبيقها على الأصناف الجديدة
+                        </small>
+                        
+                        {% elif setting.key in ['allow_manual_price_edit', 'allow_reception_edit_prices', 'auto_reorder_enabled', 'low_stock_alert_enabled'] %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="true" {% if setting.value and setting.value.lower() in ['true', '1', 'yes'] %}selected{% endif %}>
+                                مفعّل (نعم)
+                            </option>
+                            <option value="false" {% if not setting.value or setting.value.lower() in ['false', '0', 'no'] %}selected{% endif %}>
+                                معطّل (لا)
+                            </option>
+                        </select>
+                        <small class="form-text text-muted">
+                            {% if setting.key == 'allow_manual_price_edit' %}
+                            السماح بالتعديل اليدوي للأسعار من قبل المديرين
+                            {% elif setting.key == 'allow_reception_edit_prices' %}
+                            السماح لموظفي الاستقبال بتعديل أسعار الأصناف
+                            {% elif setting.key == 'auto_reorder_enabled' %}
+                            إعادة الطلب التلقائية عند انخفاض المخزون
+                            {% elif setting.key == 'low_stock_alert_enabled' %}
+                            تنبيهات انخفاض المخزون
+                            {% endif %}
+                        </small>
+                        
+                        {% elif setting.key == 'default_payment_method' %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="نقد" {% if setting.value == 'نقد' %}selected{% endif %}>نقد</option>
+                            <option value="بنك" {% if setting.value == 'بنك' %}selected{% endif %}>تحويل بنكي</option>
+                            <option value="شيك" {% if setting.value == 'شيك' %}selected{% endif %}>شيك</option>
+                            <option value="آجل" {% if setting.value == 'آجل' %}selected{% endif %}>دفع آجل</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            طريقة الدفع الافتراضية في النظام
+                        </small>
+                        
+                        {% elif setting.key == 'currency_symbol' %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="ريال" {% if setting.value == 'ريال' %}selected{% endif %}>ريال</option>
+                            <option value="دينار" {% if setting.value == 'دينار' %}selected{% endif %}>دينار</option>
+                            <option value="درهم" {% if setting.value == 'درهم' %}selected{% endif %}>درهم</option>
+                            <option value="جنيه" {% if setting.value == 'جنيه' %}selected{% endif %}>جنيه</option>
+                            <option value="دولار" {% if setting.value == 'دولار' %}selected{% endif %}>دولار</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            رمز العملة المستخدم في التقارير والفواتير
+                        </small>
+                        
+                        {% elif setting.key == 'default_report_period' %}
+                        <select class="form-select" id="value" name="value" required>
+                            <option value="today" {% if setting.value == 'today' %}selected{% endif %}>اليوم</option>
+                            <option value="week" {% if setting.value == 'week' %}selected{% endif %}>هذا الأسبوع</option>
+                            <option value="month" {% if setting.value == 'month' %}selected{% endif %}>هذا الشهر</option>
+                            <option value="quarter" {% if setting.value == 'quarter' %}selected{% endif %}>هذا الربع</option>
+                            <option value="year" {% if setting.value == 'year' %}selected{% endif %}>هذا العام</option>
+                            <option value="custom" {% if setting.value == 'custom' %}selected{% endif %}>مخصص</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            الفترة الافتراضية عند فتح صفحات التقارير
+                        </small>
+                        
+                        {% else %}
+                        <input type="text" class="form-control" id="value" name="value" value="{{ setting.value or '' }}" required>
+                        <small class="form-text text-muted">
+                            النوع: <strong>{{ setting.value_type }}</strong>
+                            {% if setting.value_type == 'int' %} - يجب أن تكون رقم صحيح
+                            {% elif setting.value_type == 'float' %} - يجب أن تكون رقم عشري
+                            {% elif setting.value_type == 'json' %} - يجب أن تكون JSON صحيح
+                            {% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">الفئة</label>
+                        <input type="text" class="form-control" value="{{ setting.category }}" readonly disabled>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">الوصف</label>
+                        <textarea class="form-control" rows="2" readonly disabled>{{ setting.description or '' }}</textarea>
+                    </div>
+
+                    {% if setting.showroom_id %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> هذا الإعداد خاص بالصالة رقم: <strong>{{ setting.showroom_id }}</strong>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-globe"></i> هذا إعداد على مستوى النظام (عام لجميع الصالات)
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ التغييرات
+                        </button>
+                        <a href="{{ url_for('system_settings_list') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> إلغاء
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> معلومات الإعداد</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-6">تم الإنشاء:</dt>
+                    <dd class="col-sm-6">
+                        {% if setting.created_at %}
+                        {{ setting.created_at.strftime('%Y-%m-%d') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-6">بواسطة:</dt>
+                    <dd class="col-sm-6">{{ setting.created_by or '-' }}</dd>
+
+                    <dt class="col-sm-6">آخر تحديث:</dt>
+                    <dd class="col-sm-6">
+                        {% if setting.updated_at %}
+                        {{ setting.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-6">بواسطة:</dt>
+                    <dd class="col-sm-6">{{ setting.updated_by or '-' }}</dd>
+
+                    <dt class="col-sm-6">إعداد نظام:</dt>
+                    <dd class="col-sm-6">
+                        {% if setting.is_system %}
+                        <span class="badge bg-warning">نعم</span>
+                        {% else %}
+                        <span class="badge bg-secondary">لا</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+

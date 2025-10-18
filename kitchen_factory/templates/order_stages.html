@@ -1,0 +1,341 @@
+
+{% extends "base.html" %}
+
+{% block title %}مراحل الطلب #{{ order.id }} - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">مراحل الطلب #{{ order.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لتفاصيل الطلب
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">مراحل الطلب</h5>
+            </div>
+            <div class="card-body">
+                {% if order.stages %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>المرحلة</th>
+                                <th>الحالة</th>
+                                <th>تاريخ البدء</th>
+                                <th>تاريخ الانتهاء</th>
+                                <th>المسؤول</th>
+                                <th>الملاحظات</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stage in order.stages %}
+                            {% if stage.stage_type == 'طلب' %}
+                            <tr>
+                                <td>{{ stage.stage_name }}</td>
+                                <td>
+                                    {% if stage.progress == 0 %}
+                                    <span class="badge bg-secondary">لم تبدأ</span>
+                                    {% elif stage.progress == 100 %}
+                                    <span class="badge bg-success">مكتملة</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">جاري العمل</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ stage.start_date or 'لم يحدد بعد' }}</td>
+                                <td>{{ stage.end_date or 'لم يحدد بعد' }}</td>
+                                <td>{{ stage.assigned_to or 'لم يحدد بعد' }}</td>
+                                <td>{{ stage.notes or '-' }}</td>
+                                <td>
+                                    {% if stage.progress == 0 %}
+                                    <!-- أزرار البدء -->
+                                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#startStageModal{{ stage.id }}">
+                                        <i class="fas fa-play"></i> بدء
+                                    </button>
+                                    {% elif stage.progress < 100 %}
+                                    <!-- أزرار الإكمال -->
+                                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#completeStageModal{{ stage.id }}">
+                                        <i class="fas fa-check"></i> إكمال
+                                    </button>
+                                    {% else %}
+                                    <!-- مرحلة مكتملة -->
+                                    <span class="text-success"><i class="fas fa-check-circle"></i> مكتملة</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+
+                            <!-- Modal بدء المرحلة -->
+                            <div class="modal fade" id="startStageModal{{ stage.id }}" tabindex="-1" aria-labelledby="startStageModalLabel{{ stage.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="startStageModalLabel{{ stage.id }}">بدء مرحلة {{ stage.stage_name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('update_order_stage', order_id=order.id, stage_id=stage.id) }}" id="startForm{{ stage.id }}">
+                                            <input type="hidden" name="action" value="start">
+                                            <div class="modal-body">
+                                                {% if stage.stage_name in ['التصنيع', 'التركيب'] %}
+                                                <!-- معلومات الطلب -->
+                                                <div class="alert alert-info mb-3">
+                                                    <strong><i class="fas fa-info-circle"></i> عدد الأمتار:</strong> {{ order.meters }} م²
+                                                </div>
+                                                
+                                                <!-- اختيار الفني -->
+                                                <div class="mb-3">
+                                                    <label for="technician_select_{{ stage.id }}" class="form-label">الفني المسؤول *</label>
+                                                    <select name="technician_id" id="technician_select_{{ stage.id }}" class="form-control technician-select" 
+                                                            data-stage-id="{{ stage.id }}" 
+                                                            data-stage-name="{{ stage.stage_name }}"
+                                                            data-order-meters="{{ order.meters }}"
+                                                            required>
+                                                        <option value="">-- اختر الفني --</option>
+                                                        {% for tech in Technician.query.filter_by(is_active=True).all() %}
+                                                        <option value="{{ tech.id }}" 
+                                                                data-manufacturing-rate="{{ tech.manufacturing_rate or 0 }}"
+                                                                data-installation-rate="{{ tech.installation_rate or 0 }}">
+                                                            {{ tech.name }} - {{ tech.specialty }}
+                                                        </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <!-- سعر المتر (قابل للتعديل) -->
+                                                <div class="mb-3">
+                                                    <label for="rate_input_{{ stage.id }}" class="form-label">سعر المتر (د.ل) *</label>
+                                                    <input type="number" step="0.01" class="form-control rate-input" 
+                                                           id="rate_input_{{ stage.id }}" 
+                                                           name="rate" 
+                                                           placeholder="0.00" 
+                                                           required>
+                                                    <small class="form-text text-muted">يمكنك تعديل السعر حسب الحاجة</small>
+                                                </div>
+                                                
+                                                <!-- عرض التكلفة المحسوبة -->
+                                                <div class="card bg-light mb-3">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title"><i class="fas fa-calculator"></i> ملخص التكلفة:</h6>
+                                                        <table class="table table-sm mb-0">
+                                                            <tr>
+                                                                <td><strong>سعر المتر:</strong></td>
+                                                                <td><span id="rate_display_{{ stage.id }}" class="text-primary">-</span> د.ل</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td><strong>عدد الأمتار:</strong></td>
+                                                                <td>{{ order.meters }} م²</td>
+                                                            </tr>
+                                                            <tr class="table-primary">
+                                                                <td><strong>التكلفة الإجمالية:</strong></td>
+                                                                <td><strong><span id="total_cost_display_{{ stage.id }}">-</span> د.ل</strong></td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- المسؤول (اختياري للمراحل الفنية) -->
+                                                <div class="mb-3">
+                                                    <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول (اختياري)</label>
+                                                    <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}">
+                                                </div>
+                                                {% else %}
+                                                <!-- المراحل العادية (غير التصنيع والتركيب) -->
+                                                <div class="mb-3">
+                                                    <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول</label>
+                                                    <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
+                                                </div>
+                                                {% endif %}
+                                                
+                                                <!-- الملاحظات -->
+                                                <div class="mb-3">
+                                                    <label for="notes_start_{{ stage.id }}" class="form-label">ملاحظات</label>
+                                                    <textarea class="form-control" id="notes_start_{{ stage.id }}" name="notes" rows="3" placeholder="أدخل ملاحظات حول بدء المرحلة...">{{ stage.notes or '' }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="fas fa-play"></i> بدء المرحلة
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal إكمال المرحلة -->
+                            <div class="modal fade" id="completeStageModal{{ stage.id }}" tabindex="-1" aria-labelledby="completeStageModalLabel{{ stage.id }}" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="completeStageModalLabel{{ stage.id }}">إكمال مرحلة {{ stage.stage_name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('update_order_stage', order_id=order.id, stage_id=stage.id) }}">
+                                            <input type="hidden" name="action" value="complete">
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label for="assigned_to_complete_{{ stage.id }}" class="form-label">المسؤول</label>
+                                                    <input type="text" class="form-control" id="assigned_to_complete_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="notes_complete_{{ stage.id }}" class="form-label">ملاحظات الإكمال</label>
+                                                    <textarea class="form-control" id="notes_complete_{{ stage.id }}" name="notes" rows="3" placeholder="أدخل ملاحظات حول إكمال المرحلة...">{{ stage.notes or '' }}</textarea>
+                                                </div>
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle"></i>
+                                                    سيتم تسجيل تاريخ الإكمال تلقائياً وبدء المرحلة التالية إن وجدت.
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                                                <button type="submit" class="btn btn-warning">
+                                                    <i class="fas fa-check"></i> إكمال المرحلة
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted">لم يتم تحديد مراحل الطلب بعد</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">معلومات الطلب</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>العميل:</strong> {{ order.customer.name }}</p>
+                <p><strong>تاريخ الطلب:</strong> {{ order.order_date }}</p>
+                <p><strong>الموعد النهائي:</strong> {{ order.deadline or 'لم يحدد' }}</p>
+                <p><strong>الحالة:</strong> 
+                    {% if order.status == 'مفتوح' %}
+                    <span class="badge bg-secondary">{{ order.status }}</span>
+                    {% elif order.status == 'قيد التنفيذ' %}
+                    <span class="badge bg-primary">{{ order.status }}</span>
+                    {% elif order.status == 'مكتمل' %}
+                    <span class="badge bg-success">{{ order.status }}</span>
+                    {% elif order.status == 'مسلّم' %}
+                    <span class="badge bg-info">{{ order.status }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>عدد الأمتار:</strong> {{ order.meters }}</p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">التكاليف</h5>
+                <a href="{{ url_for('order_costs', order_id=order.id) }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-money-bill-wave"></i> إدارة التكاليف
+                </a>
+            </div>
+            <div class="card-body">
+                <p><strong>إجمالي التكاليف:</strong> {{ order.total_price }} دينار ليبي</p>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>النوع</th>
+                                <th>المبلغ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cost in order.order_costs %}
+                            <tr>
+                                <td>{{ cost.cost_type }}</td>
+                                <td>{{ cost.amount }} دينار ليبي</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// JavaScript لحساب التكلفة التلقائي - مضاف 2025-10-18
+$(document).ready(function() {
+    // عند اختيار فني
+    $('.technician-select').change(function() {
+        var $select = $(this);
+        var $selectedOption = $select.find('option:selected');
+        var stageId = $select.data('stage-id');
+        var stageName = $select.data('stage-name');
+        var orderMeters = parseFloat($select.data('order-meters'));
+        
+        // الحصول على السعر المناسب حسب نوع المرحلة
+        var rate = 0;
+        if (stageName === 'التصنيع') {
+            rate = parseFloat($selectedOption.data('manufacturing-rate')) || 0;
+        } else if (stageName === 'التركيب') {
+            rate = parseFloat($selectedOption.data('installation-rate')) || 0;
+        }
+        
+        // تحديث حقل السعر
+        $('#rate_input_' + stageId).val(rate.toFixed(2));
+        
+        // تحديث العرض
+        updateCostDisplay(stageId, rate, orderMeters);
+    });
+    
+    // عند تغيير السعر يدوياً
+    $('.rate-input').on('input', function() {
+        var $input = $(this);
+        var stageId = $input.attr('id').replace('rate_input_', '');
+        var rate = parseFloat($input.val()) || 0;
+        var $select = $('#technician_select_' + stageId);
+        var orderMeters = parseFloat($select.data('order-meters'));
+        
+        // تحديث العرض
+        updateCostDisplay(stageId, rate, orderMeters);
+    });
+    
+    // دالة لتحديث عرض التكلفة
+    function updateCostDisplay(stageId, rate, meters) {
+        var totalCost = rate * meters;
+        
+        $('#rate_display_' + stageId).text(rate.toFixed(2));
+        $('#total_cost_display_' + stageId).text(totalCost.toFixed(2));
+    }
+    
+    // التحقق من صحة النموذج قبل الإرسال
+    $('form[id^="startForm"]').submit(function(e) {
+        var $form = $(this);
+        var $techSelect = $form.find('.technician-select');
+        
+        // إذا كان النموذج يحتوي على اختيار فني (مراحل التصنيع/التركيب)
+        if ($techSelect.length > 0) {
+            var technicianId = $techSelect.val();
+            var rate = $form.find('.rate-input').val();
+            
+            if (!technicianId || !rate || parseFloat(rate) <= 0) {
+                e.preventDefault();
+                alert('يرجى اختيار الفني وإدخال سعر صحيح');
+                return false;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

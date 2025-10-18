@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير التكاليف حسب النوع{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">تقرير التكاليف حسب النوع</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">توزيع التكاليف حسب النوع</h5>
+        </div>
+        <div class="card-body">
+            {% if costs_by_type %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>نوع التكلفة</th>
+                            <th>الإجمالي</th>
+                            <th>النسبة المئوية</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set total_amount = 0 %}
+                        {% for cost_type, amount in costs_by_type %}
+                            {% set total_amount = total_amount + amount %}
+                        {% endfor %}
+
+                        {% for cost_type, amount in costs_by_type %}
+                        <tr>
+                            <td>{{ cost_type }}</td>
+                            <td>{{ "%.2f"|format(amount) }}</td>
+                            <td>{{ "%.1f"|format((amount / total_amount * 100) if total_amount > 0 else 0) }}%</td>
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="table-active font-weight-bold">
+                            <td>الإجمالي</td>
+                            <td>{{ "%.2f"|format(total_amount) }}</td>
+                            <td>100%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4">
+                <canvas id="costsByTypeChart" width="400" height="200"></canvas>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> لا توجد بيانات تكاليف متاحة
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('reports') }}" class="btn btn-secondary">العودة إلى صفحة التقارير</a>
+        <button class="btn btn-primary" onclick="window.print()">طباعة التقرير</button>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('costsByTypeChart').getContext('2d');
+
+        const labels = [];
+        const data = [];
+
+        {% for cost_type, amount in costs_by_type %}
+            labels.push('{{ cost_type }}');
+            data.push({{ amount }});
+        {% endfor %}
+
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)',
+                        'rgba(153, 102, 255, 0.7)',
+                        'rgba(255, 159, 64, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    title: {
+                        display: true,
+                        text: 'توزيع التكاليف حسب النوع'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

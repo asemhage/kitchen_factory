@@ -1,0 +1,440 @@
+{% extends 'base.html' %}
+
+{% block title %}البحث في الأرشيف{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-search text-primary"></i> البحث المتقدم في الأرشيف</h2>
+                <a href="{{ url_for('archive_dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> العودة للوحة الأرشيف
+                </a>
+            </div>
+            
+            <!-- نموذج البحث -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-filter"></i> فلاتر البحث</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('archive_search') }}">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="table_name" class="form-label">نوع البيانات <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="table_name" name="table_name" required>
+                                        <option value="">اختر نوع البيانات</option>
+                                        {% for table in available_tables %}
+                                        <option value="{{ table.value }}" 
+                                                {% if search_params.table_name == table.value %}selected{% endif %}>
+                                            {{ table.label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="start_date" class="form-label">من تاريخ</label>
+                                    <input type="date" class="form-control" id="start_date" name="start_date" 
+                                           value="{{ search_params.start_date or '' }}">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="end_date" class="form-label">إلى تاريخ</label>
+                                    <input type="date" class="form-control" id="end_date" name="end_date" 
+                                           value="{{ search_params.end_date or '' }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="archive_reason" class="form-label">سبب الأرشفة</label>
+                                    <input type="text" class="form-control" id="archive_reason" name="archive_reason" 
+                                           placeholder="البحث في سبب الأرشفة..." 
+                                           value="{{ search_params.archive_reason or '' }}">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="archived_by" class="form-label">أرشف بواسطة</label>
+                                    <input type="text" class="form-control" id="archived_by" name="archived_by" 
+                                           placeholder="اسم المستخدم..." 
+                                           value="{{ search_params.archived_by or '' }}">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label for="limit" class="form-label">عدد النتائج</label>
+                                    <select class="form-select" id="limit" name="limit">
+                                        <option value="50" {% if search_params.limit == 50 %}selected{% endif %}>50</option>
+                                        <option value="100" {% if search_params.limit == 100 or not search_params.limit %}selected{% endif %}>100</option>
+                                        <option value="200" {% if search_params.limit == 200 %}selected{% endif %}>200</option>
+                                        <option value="500" {% if search_params.limit == 500 %}selected{% endif %}>500</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> بحث
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                                    <i class="fas fa-undo"></i> إعادة تعيين
+                                </button>
+                                {% if search_params %}
+                                <a href="{{ url_for('archive_search') }}" class="btn btn-outline-info">
+                                    <i class="fas fa-times"></i> مسح الفلاتر
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- نتائج البحث -->
+            {% if results %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-list"></i> نتائج البحث ({{ results|length }} نتيجة)</h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success" onclick="exportResults()" title="تصدير النتائج">
+                            <i class="fas fa-download"></i> تصدير
+                        </button>
+                        {% if current_user.role == 'مدير' %}
+                        <button class="btn btn-outline-info" onclick="bulkRestore()" title="استعادة متعددة">
+                            <i class="fas fa-undo"></i> استعادة متعددة
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAll" onchange="toggleAll(this)">
+                                    </th>
+                                    <th>النوع</th>
+                                    <th>معرف السجل</th>
+                                    <th>تاريخ الأرشفة</th>
+                                    <th>بواسطة</th>
+                                    <th>السبب</th>
+                                    <th>الحجم</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for result in results %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" name="selected_records" 
+                                               value="{{ result.source_table }}:{{ result.source_id }}"
+                                               class="record-checkbox">
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            {{ get_table_display_name(result.source_table) or result.source_table }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <strong># {{ result.source_id }}</strong>
+                                    </td>
+                                    <td>
+                                        <small>{{ result.archived_at[:16] if result.archived_at else 'غير محدد' }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted">{{ result.archived_by or 'غير محدد' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted" title="{{ result.archive_reason or 'غير محدد' }}">
+                                            {{ (result.archive_reason or 'غير محدد')[:30] }}{% if (result.archive_reason or '')|length > 30 %}...{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if result.data_size_bytes %}
+                                            <small>{{ "%.1f"|format(result.data_size_bytes / 1024) }} KB</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" 
+                                                    onclick="viewDetails('{{ result.source_table }}', {{ result.source_id }})"
+                                                    title="عرض التفاصيل">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            {% if current_user.role == 'مدير' and result.can_restore %}
+                                            <button class="btn btn-outline-success" 
+                                                    onclick="confirmRestore('{{ result.source_table }}', {{ result.source_id }})"
+                                                    title="استعادة السجل">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% elif search_params %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> لم يتم العثور على نتائج مطابقة لمعايير البحث.
+                <hr>
+                <strong>نصائح للبحث:</strong>
+                <ul class="mb-0 mt-2">
+                    <li>تأكد من اختيار نوع البيانات الصحيح</li>
+                    <li>جرب توسيع النطاق الزمني</li>
+                    <li>استخدم كلمات مفتاحية أقل تحديداً</li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Record Details -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تفاصيل السجل المؤرشف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="recordDetails">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Restore Confirmation -->
+<div class="modal fade" id="restoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تأكيد الاستعادة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="restoreForm" method="POST">
+                    <p class="text-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        هل أنت متأكد من استعادة هذا السجل من الأرشيف؟
+                    </p>
+                    <div class="alert alert-info">
+                        <strong>ملاحظة:</strong> سيتم إرجاع السجل وجميع البيانات المرتبطة به إلى النظام الرئيسي.
+                    </div>
+                    <div class="mb-3">
+                        <label for="restore_reason" class="form-label">سبب الاستعادة <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="restore_reason" name="restore_reason" rows="3" required 
+                                  placeholder="أدخل سبب استعادة هذا السجل..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="submit" form="restoreForm" class="btn btn-success">
+                    <i class="fas fa-undo"></i> استعادة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function resetForm() {
+    document.getElementById('table_name').value = '';
+    document.getElementById('start_date').value = '';
+    document.getElementById('end_date').value = '';
+    document.getElementById('archive_reason').value = '';
+    document.getElementById('archived_by').value = '';
+    document.getElementById('limit').value = '100';
+}
+
+function toggleAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function viewDetails(tableName, recordId) {
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    
+    // إعادة تعيين المحتوى
+    document.getElementById('recordDetails').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">جاري التحميل...</span>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+    
+    // جلب تفاصيل السجل عبر AJAX
+    fetch(`/api/archive/details/${tableName}/${recordId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let html = '<div class="row">';
+                
+                // معلومات الأرشفة
+                html += '<div class="col-md-6"><h6 class="text-primary">معلومات الأرشفة</h6>';
+                html += `<table class="table table-sm">`;
+                html += `<tr><td><strong>تاريخ الأرشفة:</strong></td><td>${data.archived_at ? data.archived_at.substring(0, 16) : 'غير محدد'}</td></tr>`;
+                html += `<tr><td><strong>بواسطة:</strong></td><td>${data.archived_by || 'غير محدد'}</td></tr>`;
+                html += `<tr><td><strong>السبب:</strong></td><td>${data.archive_reason || 'غير محدد'}</td></tr>`;
+                html += `<tr><td><strong>النوع:</strong></td><td><span class="badge bg-secondary">${data.archive_type || 'تلقائية'}</span></td></tr>`;
+                html += `<tr><td><strong>قابل للاستعادة:</strong></td><td>${data.can_restore ? '<span class="text-success">نعم</span>' : '<span class="text-danger">لا</span>'}</td></tr>`;
+                if (data.data_size_bytes) {
+                    html += `<tr><td><strong>حجم البيانات:</strong></td><td>${(data.data_size_bytes / 1024).toFixed(1)} KB</td></tr>`;
+                }
+                html += `</table></div>`;
+                
+                // البيانات الأصلية
+                html += '<div class="col-md-6"><h6 class="text-primary">البيانات الأصلية</h6>';
+                if (data.original_data) {
+                    html += '<div class="bg-light p-2 rounded" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">';
+                    html += '<pre>' + JSON.stringify(data.original_data, null, 2) + '</pre>';
+                    html += '</div>';
+                } else {
+                    html += '<p class="text-muted">البيانات الأصلية غير متاحة</p>';
+                }
+                html += '</div></div>';
+                
+                document.getElementById('recordDetails').innerHTML = html;
+            } else {
+                document.getElementById('recordDetails').innerHTML = 
+                    `<div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        خطأ في تحميل البيانات: ${data.error || 'خطأ غير معروف'}
+                    </div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('recordDetails').innerHTML = 
+                '<div class="alert alert-danger">حدث خطأ في الاتصال بالخادم</div>';
+        });
+}
+
+function confirmRestore(tableName, recordId) {
+    const form = document.getElementById('restoreForm');
+    form.action = `/archive/restore/${tableName}/${recordId}`;
+    
+    // إعادة تعيين النموذج
+    document.getElementById('restore_reason').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('restoreModal'));
+    modal.show();
+}
+
+function exportResults() {
+    // تصدير النتائج - يمكن تطويرها لاحقاً
+    alert('ميزة التصدير قيد التطوير');
+}
+
+function bulkRestore() {
+    const selected = document.querySelectorAll('.record-checkbox:checked');
+    if (selected.length === 0) {
+        alert('يرجى اختيار سجل واحد على الأقل');
+        return;
+    }
+    
+    if (confirm(`هل أنت متأكد من استعادة ${selected.length} سجل؟`)) {
+        // تنفيذ الاستعادة الجماعية - يمكن تطويرها لاحقاً
+        alert('الاستعادة الجماعية قيد التطوير');
+    }
+}
+
+// دوال مساعدة
+function getTableDisplayName(tableName) {
+    const names = {
+        'orders': 'الطلبيات',
+        'stages': 'مراحل الطلبيات',
+        'technician_due': 'مستحقات الفنيين',
+        'audit_log': 'سجل التدقيق'
+    };
+    return names[tableName] || tableName;
+}
+
+// تحسينات UX
+document.addEventListener('DOMContentLoaded', function() {
+    // تركيز على حقل نوع البيانات إذا كان فارغاً
+    const tableSelect = document.getElementById('table_name');
+    if (!tableSelect.value) {
+        tableSelect.focus();
+    }
+    
+    // تنبيه عند تغيير نوع البيانات
+    tableSelect.addEventListener('change', function() {
+        if (this.value) {
+            // يمكن إضافة المزيد من التحسينات هنا
+        }
+    });
+});
+</script>
+
+<style>
+.record-checkbox {
+    cursor: pointer;
+}
+
+#selectAll {
+    cursor: pointer;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+</style>
+{% endblock %}

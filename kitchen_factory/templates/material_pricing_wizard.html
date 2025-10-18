@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}معالج سياسات التسعير - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-magic"></i> معالج سياسات التسعير المرن</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('material_pricing_list') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- شرح الاستخدام -->
+<div class="alert alert-info">
+    <h5><i class="fas fa-info-circle"></i> كيفية الاستخدام:</h5>
+    <ol class="mb-0">
+        <li>حدد الأصناف التي تريد تطبيق سياسة معينة عليها</li>
+        <li>اختر السياسة المناسبة (آخر سعر شراء، متوسط مرجّح، أو آخر فاتورة)</li>
+        <li>حدد إعدادات إضافية (قفل الأسعار، السماح بالتعديل اليدوي)</li>
+        <li>اضغط "تطبيق السياسة" لحفظ التغييرات</li>
+    </ol>
+</div>
+
+<div class="row">
+    <!-- القائمة الرئيسية للمواد -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-light">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">قائمة الأصناف ({{ materials|length }})</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="searchMaterial" placeholder="بحث عن صنف...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-hover mb-0" id="materialsTable">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width: 50px;">
+                                    <input type="checkbox" id="selectAll" title="تحديد الكل">
+                                </th>
+                                <th>الصنف</th>
+                                <th>المخزن</th>
+                                <th>السياسة الحالية</th>
+                                <th>سعر التكلفة</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for material in materials %}
+                            <tr class="material-row" data-material-id="{{ material.id }}" data-material-name="{{ material.name|lower }}">
+                                <td>
+                                    <input type="checkbox" class="material-checkbox" value="{{ material.id }}"
+                                           data-material-name="{{ material.name }}">
+                                </td>
+                                <td>
+                                    <strong>{{ material.name }}</strong><br>
+                                    <small class="text-muted">{{ material.unit }}</small>
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if material.warehouse %}
+                                        {{ material.warehouse.name }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if material.cost_price_mode == 'purchase_price_default' %}
+                                    <span class="badge bg-primary">آخر سعر شراء</span>
+                                    {% elif material.cost_price_mode == 'weighted_average' %}
+                                    <span class="badge bg-success">متوسط مرجّح</span>
+                                    {% elif material.cost_price_mode == 'last_invoice' %}
+                                    <span class="badge bg-info">آخر فاتورة</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ material.cost_price_mode }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ '%.2f'|format(material.cost_price or 0) }}</strong></td>
+                                <td>
+                                    {% if material.price_locked %}
+                                    <i class="fas fa-lock text-warning" title="مقفل"></i>
+                                    {% else %}
+                                    <i class="fas fa-lock-open text-success" title="مفتوح"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <small class="text-muted">
+                    <span id="selectedCount">0</span> صنف محدد
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- لوحة التحكم -->
+    <div class="col-md-4">
+        <div class="card border-primary sticky-top" style="top: 20px;">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> إعدادات السياسة</h5>
+            </div>
+            <div class="card-body">
+                <form id="policyForm">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>اختر السياسة</strong></label>
+                        <select class="form-select" id="policySelect" required>
+                            <option value="">-- اختر سياسة التسعير --</option>
+                            <option value="purchase_price_default">آخر سعر شراء (افتراضي)</option>
+                            <option value="weighted_average">متوسط مرجّح</option>
+                            <option value="last_invoice">آخر فاتورة</option>
+                        </select>
+                        <small class="form-text text-muted" id="policyDescription"></small>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="lockPrices">
+                            <label class="form-check-label" for="lockPrices">
+                                قفل الأسعار
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            منع التحديث التلقائي عند إضافة فواتير جديدة
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="allowManual" checked>
+                            <label class="form-check-label" for="allowManual">
+                                السماح بالتعديل اليدوي
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            السماح للمديرين بتعديل الأسعار يدوياً
+                        </small>
+                    </div>
+
+                    <hr>
+
+                    <div class="alert alert-warning" id="noSelectionWarning">
+                        <i class="fas fa-exclamation-triangle"></i> لم يتم تحديد أي أصناف
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="applyBtn" disabled>
+                            <i class="fas fa-check"></i> تطبيق السياسة
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="clearBtn">
+                            <i class="fas fa-times"></i> إلغاء التحديد
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- فلاتر سريعة -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-filter"></i> فلاتر سريعة</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="purchase_price_default">
+                        <i class="fas fa-check"></i> آخر سعر شراء
+                    </button>
+                    <button class="btn btn-sm btn-outline-success filter-btn" data-filter="weighted_average">
+                        <i class="fas fa-check"></i> متوسط مرجّح
+                    </button>
+                    <button class="btn btn-sm btn-outline-info filter-btn" data-filter="last_invoice">
+                        <i class="fas fa-check"></i> آخر فاتورة
+                    </button>
+                    <hr>
+                    <button class="btn btn-sm btn-outline-warning filter-btn" data-filter="locked">
+                        <i class="fas fa-lock"></i> الأسعار المقفلة
+                    </button>
+                    <button class="btn btn-sm btn-outline-success filter-btn" data-filter="unlocked">
+                        <i class="fas fa-lock-open"></i> الأسعار المفتوحة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let selectedMaterials = new Set();
+
+    // وصف السياسات
+    const policyDescriptions = {
+        'purchase_price_default': 'يتم تحديث السعر تلقائياً عند كل عملية شراء',
+        'weighted_average': 'يحسب المتوسط المرجّح بناءً على الكميات والأسعار',
+        'last_invoice': 'يستخدم السعر من آخر فاتورة شراء فقط'
+    };
+
+    // تحديث وصف السياسة
+    $('#policySelect').change(function() {
+        const policy = $(this).val();
+        $('#policyDescription').text(policyDescriptions[policy] || '');
+    });
+
+    // البحث
+    $('#searchMaterial').on('keyup', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        $('.material-row').each(function() {
+            const materialName = $(this).data('material-name');
+            if (materialName.includes(searchTerm)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
+
+    // تحديد الكل
+    $('#selectAll').change(function() {
+        const isChecked = $(this).is(':checked');
+        $('.material-checkbox:visible').prop('checked', isChecked);
+        updateSelection();
+    });
+
+    // تحديد فردي
+    $('.material-checkbox').change(function() {
+        updateSelection();
+    });
+
+    // فلاتر سريعة
+    $('.filter-btn').click(function() {
+        const filter = $(this).data('filter');
+        $('.material-checkbox').prop('checked', false);
+        
+        $('.material-row').each(function() {
+            const row = $(this);
+            const checkbox = row.find('.material-checkbox');
+            const policyBadge = row.find('.badge');
+            const lockIcon = row.find('i.fa-lock, i.fa-lock-open');
+            
+            let shouldSelect = false;
+            
+            if (filter === 'locked') {
+                shouldSelect = lockIcon.hasClass('fa-lock');
+            } else if (filter === 'unlocked') {
+                shouldSelect = lockIcon.hasClass('fa-lock-open');
+            } else {
+                const badgeText = policyBadge.text().trim();
+                if (filter === 'purchase_price_default' && badgeText === 'آخر سعر شراء') {
+                    shouldSelect = true;
+                } else if (filter === 'weighted_average' && badgeText === 'متوسط مرجّح') {
+                    shouldSelect = true;
+                } else if (filter === 'last_invoice' && badgeText === 'آخر فاتورة') {
+                    shouldSelect = true;
+                }
+            }
+            
+            if (shouldSelect) {
+                checkbox.prop('checked', true);
+            }
+        });
+        
+        updateSelection();
+    });
+
+    // إلغاء التحديد
+    $('#clearBtn').click(function() {
+        $('.material-checkbox').prop('checked', false);
+        $('#selectAll').prop('checked', false);
+        updateSelection();
+    });
+
+    // تحديث حالة الواجهة
+    function updateSelection() {
+        selectedMaterials.clear();
+        $('.material-checkbox:checked').each(function() {
+            selectedMaterials.add($(this).val());
+        });
+        
+        const count = selectedMaterials.size;
+        $('#selectedCount').text(count);
+        
+        if (count > 0) {
+            $('#noSelectionWarning').hide();
+            $('#applyBtn').prop('disabled', false);
+        } else {
+            $('#noSelectionWarning').show();
+            $('#applyBtn').prop('disabled', true);
+        }
+    }
+
+    // تطبيق السياسة
+    $('#policyForm').submit(function(e) {
+        e.preventDefault();
+        
+        const policy = $('#policySelect').val();
+        const lockPrices = $('#lockPrices').is(':checked');
+        const allowManual = $('#allowManual').is(':checked');
+        
+        if (!policy) {
+            alert('يرجى اختيار سياسة التسعير');
+            return;
+        }
+        
+        if (selectedMaterials.size === 0) {
+            alert('يرجى تحديد الأصناف المراد تطبيق السياسة عليها');
+            return;
+        }
+        
+        const policyNames = {
+            'purchase_price_default': 'آخر سعر شراء',
+            'weighted_average': 'متوسط مرجّح',
+            'last_invoice': 'آخر فاتورة'
+        };
+        
+        const confirmMessage = `هل أنت متأكد من تطبيق سياسة "${policyNames[policy]}" على ${selectedMaterials.size} صنف؟`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // تعطيل الزر أثناء الإرسال
+        $('#applyBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري التطبيق...');
+        
+        // إرسال الطلب
+        $.ajax({
+            url: '{{ url_for("apply_pricing_policy") }}',
+            type: 'POST',
+            data: {
+                policy: policy,
+                'material_ids[]': Array.from(selectedMaterials),
+                lock_prices: lockPrices,
+                allow_manual: allowManual
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.message);
+                    window.location.reload();
+                } else {
+                    alert('خطأ: ' + response.message);
+                    $('#applyBtn').prop('disabled', false).html('<i class="fas fa-check"></i> تطبيق السياسة');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                alert('خطأ: ' + (response ? response.message : 'حدث خطأ غير متوقع'));
+                $('#applyBtn').prop('disabled', false).html('<i class="fas fa-check"></i> تطبيق السياسة');
+            }
+        });
+    });
+
+    // تهيئة أولية
+    updateSelection();
+});
+</script>
+
+<style>
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+.material-row {
+    cursor: pointer;
+}
+.material-row:hover {
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}
+

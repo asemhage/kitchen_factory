@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة الموردين{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="fas fa-truck"></i> إدارة الموردين</h2>
+                {% if current_user.role in ['مدير', 'مسؤول العمليات'] %}
+                <a href="{{ url_for('new_supplier') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة مورد جديد
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- إحصائيات سريعة -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-users"></i> إجمالي الموردين</h5>
+                    <h2>{{ suppliers|length }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-file-invoice"></i> إجمالي الفواتير</h5>
+                    <h2>{{ suppliers|sum(attribute='invoices_count') }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5><i class="fas fa-money-bill-wave"></i> إجمالي المبالغ</h5>
+                    <h2>{{ "%.2f"|format(suppliers|sum(attribute='total_invoices_amount')) }} دينار</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-exclamation-triangle"></i> الديون</h5>
+                    <h2>{{ "%.2f"|format(suppliers|sum(attribute='total_debt')) }} دينار</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول الموردين -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">قائمة الموردين</h5>
+        </div>
+        <div class="card-body">
+            {% if suppliers %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="suppliersTable">
+                    <thead>
+                        <tr>
+                            <th>الكود</th>
+                            <th>اسم المورد</th>
+                            <th>الهاتف</th>
+                            <th>البريد الإلكتروني</th>
+                            <th>عدد الفواتير</th>
+                            <th>إجمالي المبالغ</th>
+                            <th>الديون المتبقية</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for supplier in suppliers %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-secondary">{{ supplier.code or '-' }}</span>
+                            </td>
+                            <td>
+                                <strong>{{ supplier.name }}</strong>
+                                {% if supplier.contact_person %}
+                                <br><small class="text-muted">
+                                    <i class="fas fa-user"></i> {{ supplier.contact_person }}
+                                </small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if supplier.phone %}
+                                <a href="tel:{{ supplier.phone }}" class="text-decoration-none">
+                                    <i class="fas fa-phone"></i> {{ supplier.phone }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if supplier.email %}
+                                <a href="mailto:{{ supplier.email }}" class="text-decoration-none">
+                                    <i class="fas fa-envelope"></i> {{ supplier.email }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ supplier.invoices_count }}</span>
+                            </td>
+                            <td>
+                                <strong>{{ "%.2f"|format(supplier.total_invoices_amount) }}</strong> دينار
+                            </td>
+                            <td>
+                                {% if supplier.total_debt > 0 %}
+                                <span class="badge bg-danger">{{ "%.2f"|format(supplier.total_debt) }} دينار</span>
+                                {% else %}
+                                <span class="badge bg-success">مدفوع</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('supplier_detail', supplier_id=supplier.id) }}" 
+                                       class="btn btn-sm btn-info" title="عرض التفاصيل">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if current_user.role in ['مدير', 'مسؤول العمليات'] %}
+                                    <a href="{{ url_for('edit_supplier', supplier_id=supplier.id) }}" 
+                                       class="btn btn-sm btn-warning" title="تعديل">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if current_user.role == 'مدير' %}
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            onclick="confirmDelete({{ supplier.id }}, '{{ supplier.name }}')" 
+                                            title="حذف">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>لا يوجد موردين مسجلين</h5>
+                <p>قم بإضافة مورد جديد للبدء</p>
+                {% if current_user.role in ['مدير', 'مسؤول العمليات'] %}
+                <a href="{{ url_for('new_supplier') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة مورد جديد
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal تأكيد الحذف -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> تأكيد الحذف
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من حذف المورد: <strong id="supplierName"></strong>؟</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>تنبيه:</strong> لا يمكن التراجع عن هذا الإجراء
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> حذف
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // تفعيل DataTables
+    $(document).ready(function() {
+        $('#suppliersTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.10.24/i18n/Arabic.json'
+            },
+            order: [[1, 'asc']],
+            pageLength: 25
+        });
+    });
+
+    // دالة تأكيد الحذف
+    function confirmDelete(supplierId, supplierName) {
+        document.getElementById('supplierName').textContent = supplierName;
+        document.getElementById('deleteForm').action = '/supplier/' + supplierId + '/delete';
+        
+        var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
+</script>
+{% endblock %}
+

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة الصالات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-store"></i>
+            إدارة الصالات
+        </h2>
+        <a href="{{ url_for('new_showroom') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            إضافة صالة جديدة
+        </a>
+    </div>
+
+    {% if showroom_stats|length == 0 %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        لا توجد صالات مسجلة حالياً. يمكنك إضافة صالة جديدة باستخدام الزر أعلاه.
+    </div>
+    {% else %}
+    <div class="row">
+        {% for stat in showroom_stats %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-store"></i>
+                        {{ stat.showroom.name }}
+                        {% if stat.showroom.code %}
+                        <span class="badge bg-secondary">{{ stat.showroom.code }}</span>
+                        {% endif %}
+                    </h5>
+                    {% if stat.showroom.is_active %}
+                    <span class="badge bg-success">نشطة</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">معطلة</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <!-- معلومات الصالة -->
+                    <div class="mb-3">
+                        {% if stat.showroom.manager_name %}
+                        <p class="mb-1">
+                            <i class="fas fa-user-tie text-muted"></i>
+                            <strong>المدير:</strong> {{ stat.showroom.manager_name }}
+                        </p>
+                        {% endif %}
+                        {% if stat.showroom.phone %}
+                        <p class="mb-1">
+                            <i class="fas fa-phone text-muted"></i>
+                            <strong>الهاتف:</strong> {{ stat.showroom.phone }}
+                        </p>
+                        {% endif %}
+                        {% if stat.showroom.address %}
+                        <p class="mb-1">
+                            <i class="fas fa-map-marker-alt text-muted"></i>
+                            <strong>العنوان:</strong> {{ stat.showroom.address }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+
+                    <!-- الإحصائيات -->
+                    <div class="row text-center">
+                        <div class="col-6 mb-2">
+                            <div class="border rounded p-2 bg-light">
+                                <h4 class="mb-0 text-primary">{{ stat.total_orders }}</h4>
+                                <small class="text-muted"><i class="fas fa-clipboard-list"></i> إجمالي الطلبات</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="border rounded p-2 bg-light">
+                                <h4 class="mb-0 text-success">{{ stat.active_orders }}</h4>
+                                <small class="text-muted"><i class="fas fa-tasks"></i> طلبات نشطة</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="border rounded p-2 bg-light">
+                                <h4 class="mb-0 text-info">{{ stat.total_users }}</h4>
+                                <small class="text-muted"><i class="fas fa-users"></i> الموظفين</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="border rounded p-2 bg-warning">
+                                <h4 class="mb-0 text-dark">{{ "%.2f"|format(stat.total_remaining) }}</h4>
+                                <small class="text-dark"><i class="fas fa-coins"></i> مجموع البواقي (د.ل)</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- طلبيات للتسليم قريباً -->
+                    {% if stat.upcoming_count > 0 %}
+                    <hr>
+                    <div class="mb-3">
+                        <h6 class="text-success">
+                            <i class="fas fa-clock"></i>
+                            للتسليم قريباً ({{ stat.upcoming_count }})
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-success table-striped mb-2">
+                                <tbody>
+                                    {% for item in stat.upcoming_orders %}
+                                    <tr>
+                                        <td class="small">
+                                            <strong>{{ item.customer_name }}</strong><br>
+                                            <span class="text-muted">
+                                                #{{ item.order.id }} - 
+                                                {% if item.days_until == 0 %}
+                                                <span class="badge bg-danger">اليوم</span>
+                                                {% elif item.days_until == 1 %}
+                                                <span class="badge bg-warning">غداً</span>
+                                                {% else %}
+                                                بعد {{ item.days_until }} أيام
+                                                {% endif %}
+                                                - باقي {{ "%.2f"|format(item.remaining) }} د.ل
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if stat.upcoming_count > 5 %}
+                        <a href="{{ url_for('orders') }}?showroom={{ stat.showroom.id }}&filter=upcoming" 
+                           class="btn btn-sm btn-success">
+                            <i class="fas fa-list"></i> عرض الكل ({{ stat.upcoming_count }})
+                        </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-secondary" disabled>
+                            <i class="fas fa-list"></i> عرض الكل ({{ stat.upcoming_count }})
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- طلبيات متأخرة -->
+                    {% if stat.overdue_count > 0 %}
+                    <hr>
+                    <div class="mb-3">
+                        <h6 class="text-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            متأخرة ({{ stat.overdue_count }})
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-danger table-striped mb-2">
+                                <tbody>
+                                    {% for item in stat.overdue_orders %}
+                                    <tr>
+                                        <td class="small">
+                                            <strong>{{ item.customer_name }}</strong><br>
+                                            <span class="text-muted">
+                                                #{{ item.order.id }} - 
+                                                <span class="badge bg-danger">متأخر {{ item.days_overdue }} يوم</span>
+                                                - {{ item.order.status }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if stat.overdue_count > 5 %}
+                        <a href="{{ url_for('orders') }}?showroom={{ stat.showroom.id }}&filter=overdue" 
+                           class="btn btn-sm btn-danger">
+                            <i class="fas fa-list"></i> عرض الكل ({{ stat.overdue_count }})
+                        </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-secondary" disabled>
+                            <i class="fas fa-list"></i> عرض الكل ({{ stat.overdue_count }})
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <a href="{{ url_for('showroom_detail', showroom_id=stat.showroom.id) }}" class="btn btn-sm btn-info">
+                        <i class="fas fa-eye"></i>
+                        التفاصيل
+                    </a>
+                    <a href="{{ url_for('edit_showroom', showroom_id=stat.showroom.id) }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-edit"></i>
+                        تعديل
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

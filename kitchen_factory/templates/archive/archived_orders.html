@@ -1,0 +1,477 @@
+{% extends 'base.html' %}
+
+{% block title %}الطلبيات المؤرشفة{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-archive text-primary"></i> الطلبيات المؤرشفة</h2>
+                <div class="btn-group">
+                    <a href="{{ url_for('archive_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> العودة للوحة الأرشيف
+                    </a>
+                    <a href="{{ url_for('archive_search', table_name='orders') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> البحث المتقدم
+                    </a>
+                </div>
+            </div>
+
+            <!-- فلاتر البحث السريع -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-filter"></i> فلاتر البحث السريع</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('archive_orders_list') }}">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="customer_name" class="form-label">اسم العميل</label>
+                                <input type="text" class="form-control" id="customer_name" name="customer_name" 
+                                       placeholder="البحث باسم العميل..." 
+                                       value="{{ filters.customer_name or '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="start_date" class="form-label">من تاريخ</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ filters.start_date or '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="end_date" class="form-label">إلى تاريخ</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ filters.end_date or '' }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search"></i> بحث
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if filters.customer_name or filters.start_date or filters.end_date %}
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <a href="{{ url_for('archive_orders_list') }}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-times"></i> مسح الفلاتر
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            <!-- نتائج الطلبيات المؤرشفة -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>
+                        <i class="fas fa-list"></i> 
+                        {% if results %}
+                            الطلبيات المؤرشفة ({{ pagination.total }} طلبية)
+                        {% else %}
+                            الطلبيات المؤرشفة
+                        {% endif %}
+                    </h5>
+                    
+                    {% if results and current_user.role == 'مدير' %}
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success" onclick="bulkRestore()" title="استعادة متعددة">
+                            <i class="fas fa-undo"></i> استعادة متعددة
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="card-body">
+                    {% if results %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    {% if current_user.role == 'مدير' %}
+                                    <th>
+                                        <input type="checkbox" id="selectAll" onchange="toggleAll(this)">
+                                    </th>
+                                    {% endif %}
+                                    <th>رقم الطلبية</th>
+                                    <th>اسم العميل</th>
+                                    <th>قيمة الطلبية</th>
+                                    <th>تاريخ الطلب</th>
+                                    <th>تاريخ التسليم</th>
+                                    <th>تاريخ الأرشفة</th>
+                                    <th>أرشف بواسطة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for result in results %}
+                                {% set original_data = result.original_data or {} %}
+                                <tr>
+                                    {% if current_user.role == 'مدير' %}
+                                    <td>
+                                        <input type="checkbox" name="selected_orders" 
+                                               value="{{ result.source_id }}"
+                                               class="record-checkbox">
+                                    </td>
+                                    {% endif %}
+                                    <td>
+                                        <strong class="text-primary"># {{ result.source_id }}</strong>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ original_data.get('customer_name', 'غير محدد') }}</strong>
+                                            {% if original_data.get('customer_phone') %}
+                                            <br><small class="text-muted">{{ original_data.customer_phone }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if original_data.get('total_value') %}
+                                        <span class="text-success fw-bold">
+                                            {{ "{:,.2f}".format(original_data.total_value) }} د.ل
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">غير محدد</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if original_data.get('order_date') %}
+                                        <small>{{ original_data.order_date[:10] }}</small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if original_data.get('delivery_date') %}
+                                        <small class="text-info">{{ original_data.delivery_date[:10] }}</small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ result.archived_at[:16] if result.archived_at else '' }}</small>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ result.archived_by or 'غير محدد' }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" 
+                                                    onclick="viewOrderDetails({{ result.source_id }})"
+                                                    title="عرض تفاصيل الطلبية">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            {% if current_user.role == 'مدير' and result.can_restore %}
+                                            <button class="btn btn-outline-success" 
+                                                    onclick="confirmOrderRestore({{ result.source_id }})"
+                                                    title="استعادة الطلبية">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- التصفح -->
+                    {% if pagination.pages > 1 %}
+                    <nav aria-label="تصفح الطلبيات المؤرشفة" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if pagination.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('archive_orders_list', page=pagination.prev_num, **filters) }}">
+                                    <i class="fas fa-chevron-right"></i> السابق
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for page_num in range(1, pagination.pages + 1) %}
+                                {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% elif page_num <= 3 or page_num > pagination.pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('archive_orders_list', page=page_num, **filters) }}">{{ page_num }}</a>
+                                </li>
+                                {% elif page_num == 4 or page_num == pagination.pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if pagination.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('archive_orders_list', page=pagination.next_num, **filters) }}">
+                                    التالي <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-archive fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">لا توجد طلبيات مؤرشفة</h5>
+                        <p class="text-muted">
+                            {% if filters.customer_name or filters.start_date or filters.end_date %}
+                                لا توجد طلبيات مؤرشفة تطابق معايير البحث المحددة.
+                            {% else %}
+                                لم يتم أرشفة أي طلبيات حتى الآن.
+                            {% endif %}
+                        </p>
+                        {% if filters.customer_name or filters.start_date or filters.end_date %}
+                        <a href="{{ url_for('archive_orders_list') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-times"></i> مسح الفلاتر
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Order Details -->
+<div class="modal fade" id="orderDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تفاصيل الطلبية المؤرشفة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="orderDetailsContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Restore Confirmation -->
+<div class="modal fade" id="restoreOrderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تأكيد استعادة الطلبية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="restoreOrderForm" method="POST">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>تحذير:</strong> سيتم إرجاع الطلبية وجميع البيانات المرتبطة بها (المراحل، المواد، المدفوعات) إلى النظام الرئيسي.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="restore_reason" class="form-label">سبب الاستعادة <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="restore_reason" name="restore_reason" rows="3" required 
+                                  placeholder="أدخل سبب استعادة هذه الطلبية..."></textarea>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirmRestore" required>
+                        <label class="form-check-label" for="confirmRestore">
+                            أؤكد أنني أريد استعادة هذه الطلبية من الأرشيف
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="submit" form="restoreOrderForm" class="btn btn-success">
+                    <i class="fas fa-undo"></i> استعادة الطلبية
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function viewOrderDetails(orderId) {
+    const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+    
+    // إعادة تعيين المحتوى
+    document.getElementById('orderDetailsContent').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">جاري التحميل...</span>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+    
+    // جلب تفاصيل الطلبية
+    fetch(`/api/archive/details/orders/${orderId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.original_data) {
+                const order = data.original_data;
+                let html = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">معلومات الطلبية</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>رقم الطلبية:</strong></td><td># ${order.id}</td></tr>
+                                <tr><td><strong>اسم العميل:</strong></td><td>${order.customer_name || 'غير محدد'}</td></tr>
+                                <tr><td><strong>هاتف العميل:</strong></td><td>${order.customer_phone || 'غير محدد'}</td></tr>
+                                <tr><td><strong>العنوان:</strong></td><td>${order.customer_address || 'غير محدد'}</td></tr>
+                                <tr><td><strong>تاريخ الطلب:</strong></td><td>${order.order_date ? order.order_date.substring(0, 10) : 'غير محدد'}</td></tr>
+                                <tr><td><strong>تاريخ التسليم:</strong></td><td>${order.delivery_date ? order.delivery_date.substring(0, 10) : 'غير محدد'}</td></tr>
+                                <tr><td><strong>الحالة:</strong></td><td><span class="badge bg-success">${order.status || 'غير محدد'}</span></td></tr>
+                                <tr><td><strong>قيمة الطلبية:</strong></td><td class="text-success fw-bold">${order.total_value ? order.total_value.toLocaleString() + ' د.ل' : 'غير محدد'}</td></tr>
+                            </table>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">معلومات الأرشفة</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>تاريخ الأرشفة:</strong></td><td>${data.archived_at ? data.archived_at.substring(0, 16) : 'غير محدد'}</td></tr>
+                                <tr><td><strong>أرشف بواسطة:</strong></td><td>${data.archived_by || 'غير محدد'}</td></tr>
+                                <tr><td><strong>سبب الأرشفة:</strong></td><td>${data.archive_reason || 'غير محدد'}</td></tr>
+                                <tr><td><strong>نوع الأرشفة:</strong></td><td><span class="badge bg-secondary">${data.archive_type || 'تلقائية'}</span></td></tr>
+                                <tr><td><strong>قابل للاستعادة:</strong></td><td>${data.can_restore ? '<span class="text-success">نعم</span>' : '<span class="text-danger">لا</span>'}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+                // إضافة الملاحظات إذا كانت موجودة
+                if (order.notes) {
+                    html += `
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6 class="text-primary">ملاحظات الطلبية</h6>
+                                <div class="alert alert-light">
+                                    ${order.notes}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('orderDetailsContent').innerHTML = html;
+            } else {
+                document.getElementById('orderDetailsContent').innerHTML = 
+                    `<div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        خطأ في تحميل تفاصيل الطلبية: ${data.error || 'خطأ غير معروف'}
+                    </div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('orderDetailsContent').innerHTML = 
+                '<div class="alert alert-danger">حدث خطأ في الاتصال بالخادم</div>';
+        });
+}
+
+function confirmOrderRestore(orderId) {
+    const form = document.getElementById('restoreOrderForm');
+    form.action = `/archive/restore/orders/${orderId}`;
+    
+    // إعادة تعيين النموذج
+    document.getElementById('restore_reason').value = '';
+    document.getElementById('confirmRestore').checked = false;
+    
+    const modal = new bootstrap.Modal(document.getElementById('restoreOrderModal'));
+    modal.show();
+}
+
+function bulkRestore() {
+    const selected = document.querySelectorAll('.record-checkbox:checked');
+    if (selected.length === 0) {
+        alert('يرجى اختيار طلبية واحدة على الأقل');
+        return;
+    }
+    
+    if (confirm(`هل أنت متأكد من استعادة ${selected.length} طلبية من الأرشيف؟\n\nتحذير: هذه العملية لا يمكن التراجع عنها.`)) {
+        // يمكن تطوير هذه الميزة لاحقاً
+        alert('الاستعادة الجماعية قيد التطوير');
+    }
+}
+
+// تحسينات UX
+document.addEventListener('DOMContentLoaded', function() {
+    // تركيز على حقل البحث إذا كان فارغاً
+    const customerNameInput = document.getElementById('customer_name');
+    if (!customerNameInput.value && !document.getElementById('start_date').value && !document.getElementById('end_date').value) {
+        customerNameInput.focus();
+    }
+});
+</script>
+
+<style>
+.record-checkbox, #selectAll {
+    cursor: pointer;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.pagination .page-link {
+    color: #0d6efd;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.modal-xl {
+    max-width: 1200px;
+}
+
+.timeline-item {
+    margin-bottom: 1rem;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.text-primary { color: #0d6efd !important; }
+.text-success { color: #198754 !important; }
+.text-info { color: #0dcaf0 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-danger { color: #dc3545 !important; }
+
+.fw-bold { font-weight: bold !important; }
+</style>
+{% endblock %}

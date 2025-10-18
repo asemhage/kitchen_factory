@@ -1,0 +1,152 @@
+
+{% extends "base.html" %}
+
+{% block title %}إضافة طلب جديد - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">إضافة طلب جديد</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('orders') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة للطلبات
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">بيانات الطلب</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="customer_name" class="form-label">اسم العميل</label>
+                    <input type="text" class="form-control" id="customer_name" name="customer_name" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="customer_phone" class="form-label">هاتف العميل</label>
+                    <input type="text" class="form-control" id="customer_phone" name="customer_phone">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="customer_address" class="form-label">عنوان العميل</label>
+                <textarea class="form-control" id="customer_address" name="customer_address" rows="2"></textarea>
+            </div>
+
+            {% if current_user.role == 'مدير' %}
+            <div class="mb-3">
+                <label for="showroom_id" class="form-label">الصالة <span class="text-danger">*</span></label>
+                <select class="form-select" id="showroom_id" name="showroom_id" required>
+                    <option value="">-- اختر الصالة --</option>
+                    {% for showroom in showrooms %}
+                    <option value="{{ showroom.id }}">{{ showroom.name }} ({{ showroom.code }})</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">يجب اختيار الصالة التي سيُسجّل فيها الطلب</div>
+            </div>
+            {% endif %}
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="delivery_date" class="form-label">تاريخ التسليم</label>
+                    <input type="date" class="form-control" id="delivery_date" name="delivery_date">
+                </div>
+                <div class="col-md-4">
+                    <label for="deadline" class="form-label">الموعد النهائي</label>
+                    <input type="date" class="form-control" id="deadline" name="deadline">
+                </div>
+                <div class="col-md-4">
+                    <label for="meters" class="form-label">عدد الأمتار</label>
+                    <input type="number" class="form-control" id="meters" name="meters" min="1" required>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="total_value" class="form-label">قيمة الطلبية (دينار ليبي)</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="total_value" name="total_value" min="0" step="0.01" required>
+                    <span class="input-group-text">دينار ليبي</span>
+                </div>
+                <div class="form-text">القيمة الإجمالية للطلبية قبل الخصومات</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="files" class="form-label">ملفات الطلب</label>
+                <input type="file" class="form-control" id="files" name="files" multiple accept=".pdf,.jpg,.jpeg,.png">
+                <div class="form-text">يمكن رفع ملفات PDF أو صور متعددة</div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('orders') }}" class="btn btn-secondary">إلغاء</a>
+                <button type="submit" class="btn btn-primary">حفظ الطلب</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">العملاء الحاليون</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="customersTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>اسم العميل</th>
+                        <th>الهاتف</th>
+                        <th>العنوان</th>
+                        <th>عدد الطلبات</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr>
+                        <td>{{ customer.name }}</td>
+                        <td>{{ customer.phone }}</td>
+                        <td>{{ customer.address }}</td>
+                        <td>{{ customer.orders|length }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary select-customer" 
+                                    data-name="{{ customer.name }}" 
+                                    data-phone="{{ customer.phone }}" 
+                                    data-address="{{ customer.address }}">
+                                اختيار
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#customersTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Arabic.json"
+            }
+        });
+
+        $('.select-customer').click(function() {
+            $('#customer_name').val($(this).data('name'));
+            $('#customer_phone').val($(this).data('phone'));
+            $('#customer_address').val($(this).data('address'));
+
+            // التمرير إلى أعلى النموذج
+            $('html, body').animate({
+                scrollTop: $("#customer_name").offset().top - 100
+            }, 500);
+        });
+    });
+</script>
+{% endblock %}

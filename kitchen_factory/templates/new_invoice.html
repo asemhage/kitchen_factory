@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}إضافة فاتورة شراء{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-file-invoice-dollar"></i> إضافة فاتورة شراء جديدة</h2>
+        </div>
+    </div>
+
+    <form method="POST" id="invoiceForm">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-info-circle"></i> معلومات الفاتورة</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="supplier_id">المورد <span class="text-danger">*</span></label>
+                            <select class="form-control" id="supplier_id" name="supplier_id" required>
+                                <option value="">اختر المورد</option>
+                                {% for supplier in suppliers %}
+                                <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="invoice_number">رقم الفاتورة <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="invoice_number" name="invoice_number" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="invoice_date">تاريخ الفاتورة <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="invoice_date" name="invoice_date" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label for="notes">ملاحظات</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-boxes"></i> المواد المشتراة</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered" id="itemsTable">
+                    <thead class="thead-light">
+                        <tr>
+                            <th width="40%">المادة</th>
+                            <th width="15%">الكمية</th>
+                            <th width="20%">سعر الشراء (للوحدة)</th>
+                            <th width="20%">المجموع <small class="text-muted">(تلقائي)</small></th>
+                            <th width="5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        <tr class="item-row">
+                            <td>
+                                <select class="form-control material-select" name="material_id[]" required>
+                                    <option value="">اختر المادة</option>
+                                    {% for material in materials %}
+                                    <option value="{{ material.id }}" data-unit="{{ material.unit }}">
+                                        {{ material.name }} ({{ material.unit }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control quantity-input" 
+                                       name="quantity[]" min="0.01" placeholder="0" required>
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control price-input" 
+                                       name="price[]" min="0.01" placeholder="0.00" required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control line-total text-right font-weight-bold" 
+                                       readonly value="0.00">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger remove-row">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <button type="button" class="btn btn-sm btn-secondary" id="addRowBtn">
+                    <i class="fas fa-plus"></i> إضافة مادة
+                </button>
+
+                <div class="row mt-4">
+                    <div class="col-md-8"></div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="fas fa-calculator"></i> الملخص المالي</h6>
+                            </div>
+                            <div class="card-body p-2">
+                                <table class="table table-sm table-bordered mb-0">
+                                    <tr class="table-primary">
+                                        <th width="50%">المجموع الكلي:</th>
+                                        <td class="text-right"><strong id="totalAmount">0.00</strong> د.ل</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" class="p-2">
+                                            <label for="payment_method" class="mb-1 small font-weight-bold">
+                                                <i class="fas fa-money-bill-wave"></i> طريقة الدفع
+                                            </label>
+                                            <select class="form-control form-control-sm" id="payment_method" name="payment_method">
+                                                <option value="نقد">نقد</option>
+                                                <option value="شيك">شيك</option>
+                                                <option value="تحويل بنكي">تحويل بنكي</option>
+                                                <option value="آجل">آجل</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr class="table-success">
+                                        <td colspan="2" class="p-2">
+                                            <label for="paid_amount" class="mb-1 small font-weight-bold">
+                                                <i class="fas fa-hand-holding-usd"></i> المبلغ المدفوع (د.ل)
+                                            </label>
+                                            <input type="number" step="0.01" 
+                                                   class="form-control form-control-sm text-right font-weight-bold" 
+                                                   id="paid_amount" name="paid_amount" 
+                                                   value="0.00" min="0" placeholder="0.00">
+                                            <small class="text-muted">اتركه 0 إذا كانت آجلة</small>
+                                        </td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <th>الباقي:</th>
+                                        <td class="text-right">
+                                            <strong id="remainingAmount" class="text-danger">0.00</strong> د.ل
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save"></i> حفظ الفاتورة
+                </button>
+                <a href="{{ url_for('invoices_list') }}" class="btn btn-secondary btn-lg">
+                    <i class="fas fa-times"></i> إلغاء
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // تعيين تاريخ اليوم كافتراضي
+    var today = new Date().toISOString().split('T')[0];
+    $('#invoice_date').val(today);
+    
+    // إضافة صف جديد
+    $('#addRowBtn').click(function() {
+        var newRow = $('.item-row:first').clone();
+        newRow.find('input').val('');
+        newRow.find('select').val('');
+        newRow.find('.line-total').val('0.00');
+        $('#itemsBody').append(newRow);
+    });
+
+    // حذف صف
+    $(document).on('click', '.remove-row', function() {
+        if ($('.item-row').length > 1) {
+            $(this).closest('tr').remove();
+            calculateTotals();
+        } else {
+            alert('يجب أن يكون هناك مادة واحدة على الأقل');
+        }
+    });
+
+    // حساب مجموع السطر تلقائياً
+    $(document).on('input', '.quantity-input, .price-input', function() {
+        var row = $(this).closest('tr');
+        var quantity = parseFloat(row.find('.quantity-input').val()) || 0;
+        var price = parseFloat(row.find('.price-input').val()) || 0;
+        var lineTotal = quantity * price;
+        var lineTotalField = row.find('.line-total');
+        
+        // تحديث القيمة مع تأثير بصري
+        lineTotalField.val(lineTotal.toFixed(2));
+        lineTotalField.addClass('bg-light');
+        setTimeout(function() {
+            lineTotalField.removeClass('bg-light');
+        }, 300);
+        
+        calculateTotals();
+    });
+
+    // حساب الإجماليات عند تغيير المبلغ المدفوع
+    $(document).on('input', '#paid_amount', function() {
+        calculateTotals();
+    });
+
+    function calculateTotals() {
+        var total = 0;
+        $('.line-total').each(function() {
+            total += parseFloat($(this).val()) || 0;
+        });
+
+        // معالجة آمنة للمبلغ المدفوع
+        var paidValue = $('#paid_amount').val();
+        var paid = 0;
+        
+        if (paidValue !== null && paidValue !== undefined && paidValue !== '') {
+            paid = parseFloat(paidValue) || 0;
+        }
+        
+        // التأكد من أن paid رقم صحيح
+        paid = isNaN(paid) ? 0 : paid;
+        
+        var remaining = total - paid;
+        
+        // التأكد من عدم تجاوز المبلغ المدفوع للمجموع
+        if (paid > total) {
+            paid = total;
+            $('#paid_amount').val(paid.toFixed(2));
+            remaining = 0;
+        }
+        
+        // التأكد من أن remaining ليس سالباً
+        remaining = Math.max(0, remaining);
+
+        $('#totalAmount').text(total.toFixed(2));
+        $('#displayPaid').text(paid.toFixed(2));
+        $('#remainingAmount').text(remaining.toFixed(2));
+    }
+
+    // التحقق من عدم تكرار المواد
+    $(document).on('change', '.material-select', function() {
+        var selectedValues = [];
+        var hasDuplicate = false;
+
+        $('.material-select').each(function() {
+            var val = $(this).val();
+            if (val && selectedValues.includes(val)) {
+                hasDuplicate = true;
+            }
+            selectedValues.push(val);
+        });
+
+        if (hasDuplicate) {
+            alert('تم اختيار هذه المادة مسبقاً');
+            $(this).val('');
+        }
+    });
+
+    // حساب الإجماليات عند تحميل الصفحة
+    calculateTotals();
+});
+</script>
+{% endblock %}
+

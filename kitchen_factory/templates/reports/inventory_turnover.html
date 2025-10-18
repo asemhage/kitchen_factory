@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير دوران المخزون - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-sync-alt"></i> تقرير دوران المخزون</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right"></i> رجوع
+        </a>
+    </div>
+</div>
+
+<!-- فلتر الفترة -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="period" class="form-label">فترة التقرير</label>
+                <select class="form-select" id="period" name="period" onchange="this.form.submit()">
+                    <option value="30" {% if period == 30 %}selected{% endif %}>آخر 30 يوم</option>
+                    <option value="90" {% if period == 90 %}selected{% endif %}>آخر 90 يوم</option>
+                    <option value="180" {% if period == 180 %}selected{% endif %}>آخر 6 أشهر</option>
+                    <option value="365" {% if period == 365 %}selected{% endif %}>آخر سنة</option>
+                </select>
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+                <div class="text-muted">
+                    <i class="fas fa-calendar"></i> 
+                    من {{ start_date.strftime('%Y-%m-%d') }} إلى {{ end_date.strftime('%Y-%m-%d') }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- الإحصائيات الإجمالية -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-start border-primary border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">قيمة المخزون الكلية</h6>
+                <h3 class="text-primary mb-0">{{ '{:,.2f}'.format(summary.total_inventory_value) }}</h3>
+                <small class="text-muted">دينار ليبي</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card border-start border-success border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">سريع الحركة</h6>
+                <h3 class="text-success mb-0">{{ summary.fast_moving_count }}</h3>
+                <small class="text-muted">مادة</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card border-start border-info border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">متوسط الحركة</h6>
+                <h3 class="text-info mb-0">{{ summary.medium_moving_count }}</h3>
+                <small class="text-muted">مادة</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card border-start border-warning border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">بطيء الحركة</h6>
+                <h3 class="text-warning mb-0">{{ summary.slow_moving_count }}</h3>
+                <small class="text-muted">مادة</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-danger border-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-1">راكد</h6>
+                <h3 class="text-danger mb-0">{{ summary.stagnant_count }}</h3>
+                <small class="text-muted">مادة (لم تستهلك)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- المواد السريعة الحركة -->
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="fas fa-fire"></i> أعلى 10 مواد سريعة الحركة</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>اسم المادة</th>
+                        <th>الوحدة</th>
+                        <th class="text-end">الكمية المستهلكة</th>
+                        <th class="text-end">الكمية الحالية</th>
+                        <th class="text-end">معدل الدوران</th>
+                        <th class="text-end">أيام المخزون</th>
+                        <th class="text-end">قيمة المخزون</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fast_moving %}
+                        {% for data in fast_moving %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ data.material.name }}</strong></td>
+                            <td>{{ data.material.unit }}</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.consumed_qty) }}</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.current_qty) }}</td>
+                            <td class="text-end">
+                                <span class="badge bg-success">{{ '{:.2f}'.format(data.turnover_ratio) }}</span>
+                            </td>
+                            <td class="text-end">{{ '{:.0f}'.format(data.days_in_inventory) }} يوم</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.inventory_value) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">لا توجد مواد سريعة الحركة</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- المواد البطيئة الحركة -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0"><i class="fas fa-hourglass-half"></i> أبطأ 10 مواد حركة</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>اسم المادة</th>
+                        <th>الوحدة</th>
+                        <th class="text-end">الكمية المستهلكة</th>
+                        <th class="text-end">الكمية الحالية</th>
+                        <th class="text-end">معدل الدوران</th>
+                        <th class="text-end">أيام المخزون</th>
+                        <th class="text-end">قيمة المخزون</th>
+                        <th>التوصية</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if slow_moving %}
+                        {% for data in slow_moving %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ data.material.name }}</strong></td>
+                            <td>{{ data.material.unit }}</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.consumed_qty) }}</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.current_qty) }}</td>
+                            <td class="text-end">
+                                <span class="badge bg-warning">{{ '{:.2f}'.format(data.turnover_ratio) }}</span>
+                            </td>
+                            <td class="text-end">{{ '{:.0f}'.format(data.days_in_inventory) }} يوم</td>
+                            <td class="text-end">{{ '{:,.2f}'.format(data.inventory_value) }}</td>
+                            <td><span class="badge bg-warning">تقليل المشتريات</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4">لا توجد مواد بطيئة الحركة</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- المواد الراكدة -->
+{% if stagnant %}
+<div class="card mb-4">
+    <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> مواد راكدة (لم تستهلك)</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>اسم المادة</th>
+                        <th>الوحدة</th>
+                        <th class="text-end">الكمية الحالية</th>
+                        <th class="text-end">قيمة المخزون</th>
+                        <th class="text-end">عدد مرات الشراء</th>
+                        <th>التوصية</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in stagnant %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><strong>{{ data.material.name }}</strong></td>
+                        <td>{{ data.material.unit }}</td>
+                        <td class="text-end">{{ '{:,.2f}'.format(data.current_qty) }}</td>
+                        <td class="text-end">{{ '{:,.2f}'.format(data.inventory_value) }}</td>
+                        <td class="text-end">{{ data.purchase_count }}</td>
+                        <td><span class="badge bg-danger">إيقاف الشراء</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- رسم بياني -->
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-chart-pie"></i> توزيع المواد حسب سرعة الحركة</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="movementChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// رسم بياني: توزيع المواد
+const movementCtx = document.getElementById('movementChart').getContext('2d');
+new Chart(movementCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['سريع الحركة', 'متوسط الحركة', 'بطيء الحركة', 'راكد'],
+        datasets: [{
+            data: [
+                {{ summary.fast_moving_count }},
+                {{ summary.medium_moving_count }},
+                {{ summary.slow_moving_count }},
+                {{ summary.stagnant_count }}
+            ],
+            backgroundColor: [
+                'rgba(25, 135, 84, 0.7)',
+                'rgba(13, 202, 240, 0.7)',
+                'rgba(255, 193, 7, 0.7)',
+                'rgba(220, 53, 69, 0.7)'
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 15,
+                    font: {
+                        size: 14
+                    }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return label + ': ' + value + ' مادة (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+
