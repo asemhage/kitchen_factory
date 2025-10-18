@@ -4,7 +4,7 @@
 # التاريخ: 2025-10-18
 # المستودع: https://github.com/asemhage/kitchen_factory
 
-set -e  # إيقاف عند أول خطأ
+# ملاحظة: لا نستخدم set -e لأننا نتعامل مع الأخطاء يدوياً
 
 echo "=========================================="
 echo "  تنزيل Kitchen Factory من GitHub"
@@ -21,11 +21,11 @@ fi
 # 1. إيقاف الخدمة (إن وجدت)
 echo "[1/13] إيقاف الخدمة..."
 if sudo systemctl is-active --quiet kitchen_factory 2>/dev/null; then
-    sudo systemctl stop kitchen_factory
+    sudo systemctl stop kitchen_factory 2>/dev/null || true
     echo "✅ تم إيقاف الخدمة"
-elif pgrep -f "python.*app.py" > /dev/null; then
+elif pgrep -f "python.*app.py" > /dev/null 2>&1; then
     echo "⚠️  إيقاف العملية اليدوية..."
-    pkill -f "python.*app.py"
+    pkill -f "python.*app.py" 2>/dev/null || true
     sleep 2
     echo "✅ تم إيقاف العملية"
 else
