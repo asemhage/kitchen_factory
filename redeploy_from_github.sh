@@ -18,10 +18,19 @@ if [ "$(pwd)" != "/home/asem" ]; then
     exit 1
 fi
 
-# 1. إيقاف الخدمة
+# 1. إيقاف الخدمة (إن وجدت)
 echo "[1/13] إيقاف الخدمة..."
-sudo systemctl stop kitchen_factory
-echo "✅ تم إيقاف الخدمة"
+if sudo systemctl is-active --quiet kitchen_factory 2>/dev/null; then
+    sudo systemctl stop kitchen_factory
+    echo "✅ تم إيقاف الخدمة"
+elif pgrep -f "python.*app.py" > /dev/null; then
+    echo "⚠️  إيقاف العملية اليدوية..."
+    pkill -f "python.*app.py"
+    sleep 2
+    echo "✅ تم إيقاف العملية"
+else
+    echo "✅ لا توجد خدمة قيد التشغيل"
+fi
 
 # 2. التحقق من وجود المشروع القديم
 if [ ! -d "kitchen_factory" ]; then
@@ -111,22 +120,47 @@ chmod +x *.sh 2>/dev/null || true
 chmod 644 kitchen_factory.db 2>/dev/null || true
 echo "✅ تم ضبط الصلاحيات"
 
-# 13. بدء الخدمة
+# 13. بدء الخدمة أو التطبيق
 echo "[12/13] بدء الخدمة..."
 cd /home/asem
-sudo systemctl start kitchen_factory
-echo "✅ تم بدء الخدمة"
+
+# محاولة بدء الخدمة عبر systemd
+if sudo systemctl start kitchen_factory 2>/dev/null; then
+    echo "✅ تم بدء الخدمة عبر systemd"
+    USE_SYSTEMD=true
+else
+    # إذا لم تكن الخدمة موجودة، نشغل يدوياً
+    echo "⚠️  systemd غير متاح، التشغيل اليدوي..."
+    cd kitchen_factory
+    nohup python app.py > app.log 2>&1 &
+    echo $! > app.pid
+    sleep 3
+    echo "✅ تم بدء التطبيق يدوياً (PID: $(cat app.pid))"
+    USE_SYSTEMD=false
+fi
 
 # 14. التحقق من الحالة
 echo "[13/13] التحقق من الحالة..."
 sleep 3
-if sudo systemctl is-active --quiet kitchen_factory; then
-    echo "✅ الخدمة تعمل بنجاح"
-    STATUS="✅ يعمل"
+
+if [ "$USE_SYSTEMD" = true ]; then
+    if sudo systemctl is-active --quiet kitchen_factory; then
+        echo "✅ الخدمة تعمل بنجاح"
+        STATUS="✅ يعمل (systemd)"
+    else
+        echo "❌ الخدمة لا تعمل!"
+        STATUS="❌ لا يعمل"
+        sudo systemctl status kitchen_factory --no-pager
+    fi
 else
-    echo "❌ الخدمة لا تعمل!"
-    STATUS="❌ لا يعمل"
-    sudo systemctl status kitchen_factory --no-pager
+    if pgrep -f "python.*app.py" > /dev/null; then
+        echo "✅ التطبيق يعمل بنجاح"
+        STATUS="✅ يعمل (يدوي)"
+    else
+        echo "❌ التطبيق لا يعمل!"
+        STATUS="❌ لا يعمل"
+        tail -n 20 kitchen_factory/app.log
+    fi
 fi
 
 echo ""
