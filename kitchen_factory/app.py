@@ -3093,148 +3093,149 @@ def format_arabic_text(text):
         return text
 
 # دالة لإنشاء إيصال قبض PDF
-def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون', receipt_number=None):
-    """إنشاء إيصال قبض PDF مع دعم كامل للغة العربية"""
-    buffer = io.BytesIO()
-    
-    # إنشاء مستند PDF
-    p = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    
-    # تسجيل الخط العربي مع fallback محسن
-    arabic_font = register_arabic_fonts()
-    
-    # تحسين اختيار الخط
-    if arabic_font:
-        font_name = arabic_font
-        print(f"✅ استخدام الخط العربي: {font_name}")
-    else:
-        # fallback للخطوط المتاحة
-        available_fonts = ['Helvetica-Bold', 'Helvetica', 'Times-Bold', 'Times-Roman']
-        font_name = available_fonts[0]  # استخدام أول خط متاح
-        print(f"⚠️ استخدام الخط الافتراضي: {font_name}")
-    
-    # رأس الإيصال
-    p.setFont(font_name, 16)
-    
-    # العنوان (بالإنجليزية)
-    title_text = "Kitchen Factory"
-    title_width = p.stringWidth(title_text, font_name, 16)
-    p.drawString((width - title_width) / 2, height - 2*cm, title_text)
-    
-    # العنوان الفرعي (عربي + إنجليزي)
-    subtitle_ar = format_arabic_text("ايصال قبض")
-    subtitle_text = f"Receipt / {subtitle_ar}"
-    subtitle_width = p.stringWidth(subtitle_text, font_name, 14)
-    p.setFont(font_name, 14)
-    p.drawString((width - subtitle_width) / 2, height - 2.8*cm, subtitle_text)
-    
-    # اسم الصالة
-    if order.showroom:
-        showroom_label = format_arabic_text("الصالة")
-        showroom_text = f"Showroom / {showroom_label}: {order.showroom.name}"
-        showroom_width = p.stringWidth(showroom_text, font_name, 11)
-        p.setFont(font_name, 11)
-        p.drawString((width - showroom_width) / 2, height - 3.5*cm, showroom_text)
-    
-    # رقم الإيصال
-    if receipt_number:
-        receipt_label = format_arabic_text("رقم الإيصال")
-        p.setFont(font_name, 10)
-        p.drawString(2*cm, height - 4*cm, f"Receipt No / {receipt_label}: {receipt_number}")
-    
-    # معلومات الإيصال
-    y_position = height - 5.3*cm
-    p.setFont(font_name, 12)
-    
-    # رقم الطلب
-    order_label = format_arabic_text("رقم الطلب")
-    p.drawString(2*cm, y_position, f"Order ID / {order_label}: {order.id}")
-    y_position -= 0.8*cm
-    
-    # اسم العميل
-    customer_label = format_arabic_text("العميل")
-    p.drawString(2*cm, y_position, f"Customer / {customer_label}: {order.customer.name}")
-    y_position -= 0.8*cm
-    
-    # تاريخ الإيصال
-    date_label = format_arabic_text("التاريخ")
-    p.drawString(2*cm, y_position, f"Date / {date_label}: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    y_position -= 0.8*cm
-    
-    # نوع الدفع (مع دعم أنواع متعددة)
-    payment_type_label = format_arabic_text("نوع الدفع")
-    payment_type_formatted = format_arabic_text(payment_type_ar)
-    
-    # الترجمة الإنجليزية
-    payment_type_en = {
-        'عربون': 'Deposit',
-        'دفعة': 'Payment',
-        'باقي المبلغ': 'Final Payment'
-    }.get(payment_type_ar, 'Payment')
-    
-    p.drawString(2*cm, y_position, f"Payment Type / {payment_type_label}: {payment_type_en} / {payment_type_formatted}")
-    y_position -= 1*cm
-    
-    # التفاصيل المالية
-    financial_label = format_arabic_text("التفاصيل المالية")
-    p.setFont(font_name, 13)
-    p.drawString(2*cm, y_position, f"Financial Details / {financial_label}:")
-    y_position -= 0.8*cm
-    
-    p.setFont(font_name, 11)
-    currency_label = format_arabic_text("دينار ليبي")
-    
-    # قيمة الطلبية
-    order_value_label = format_arabic_text("قيمة الطلبية")
-    p.drawString(2.5*cm, y_position, f"Order Value / {order_value_label}: {order.total_value:.2f} LYD / {currency_label}")
-    y_position -= 0.6*cm
-    
-    # إجمالي المدفوعات
-    total_paid_label = format_arabic_text("إجمالي المدفوعات")
-    p.drawString(2.5*cm, y_position, f"Total Paid / {total_paid_label}: {order.total_paid:.2f} LYD / {currency_label}")
-    y_position -= 0.6*cm
-    
-    # المتبقي
-    remaining_label = format_arabic_text("المتبقي")
-    p.drawString(2.5*cm, y_position, f"Remaining / {remaining_label}: {order.remaining_amount:.2f} LYD / {currency_label}")
-    y_position -= 0.8*cm
-    
-    # هذه الدفعة
-    if payment_amount:
-        p.setFont(font_name, 13)
-        this_payment_label = format_arabic_text("هذه الدفعة")
-        p.drawString(2*cm, y_position, f"This Payment / {this_payment_label}: {payment_amount:.2f} LYD / {currency_label}")
-        y_position -= 1*cm
-    
-    # حالة الدفع
-    p.setFont(font_name, 12)
-    payment_status_label = format_arabic_text("حالة الدفع")
-    status_ar = format_arabic_text(order.payment_status)
-    p.drawString(2*cm, y_position, f"Payment Status / {payment_status_label}: {status_ar}")
-    y_position -= 0.8*cm
-    
-    # المستلم
-    received_by_label = format_arabic_text("المستلم")
-    p.drawString(2*cm, y_position, f"Received by / {received_by_label}: {current_user.username}")
-    y_position -= 1.5*cm
-    
-    # خط فاصل
-    p.line(2*cm, y_position, width - 2*cm, y_position)
-    y_position -= 1*cm
-    
-    # ملاحظة
-    note_label = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر")
-    p.setFont(font_name, 9)
-    p.drawString(2*cm, y_position, "This is a computer generated receipt.")
-    p.drawString(2*cm, y_position - 0.5*cm, note_label)
-    
-    # إنهاء المستند
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return buffer
+# تم تعليق الدالة القديمة واستبدالها بـ generate_receipt_pdf_v2 - 2025-10-19
+# def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون', receipt_number=None):
+#     """إنشاء إيصال قبض PDF مع دعم كامل للغة العربية - الإصدار القديم"""
+#     buffer = io.BytesIO()
+#     
+#     # إنشاء مستند PDF
+#     p = canvas.Canvas(buffer, pagesize=A4)
+#     width, height = A4
+#     
+#     # تسجيل الخط العربي مع fallback محسن
+#     arabic_font = register_arabic_fonts()
+#     
+#     # تحسين اختيار الخط
+#     if arabic_font:
+#         font_name = arabic_font
+#         print(f"✅ استخدام الخط العربي: {font_name}")
+#     else:
+#         # fallback للخطوط المتاحة
+#         available_fonts = ['Helvetica-Bold', 'Helvetica', 'Times-Bold', 'Times-Roman']
+#         font_name = available_fonts[0]  # استخدام أول خط متاح
+#         print(f"⚠️ استخدام الخط الافتراضي: {font_name}")
+#     
+#     # رأس الإيصال
+#     p.setFont(font_name, 16)
+#     
+#     # العنوان (بالإنجليزية)
+#     title_text = "Kitchen Factory"
+#     title_width = p.stringWidth(title_text, font_name, 16)
+#     p.drawString((width - title_width) / 2, height - 2*cm, title_text)
+#     
+#     # العنوان الفرعي (عربي + إنجليزي)
+#     subtitle_ar = format_arabic_text("ايصال قبض")
+#     subtitle_text = f"Receipt / {subtitle_ar}"
+#     subtitle_width = p.stringWidth(subtitle_text, font_name, 14)
+#     p.setFont(font_name, 14)
+#     p.drawString((width - subtitle_width) / 2, height - 2.8*cm, subtitle_text)
+#     
+#     # اسم الصالة
+#     if order.showroom:
+#         showroom_label = format_arabic_text("الصالة")
+#         showroom_text = f"Showroom / {showroom_label}: {order.showroom.name}"
+#         showroom_width = p.stringWidth(showroom_text, font_name, 11)
+#         p.setFont(font_name, 11)
+#         p.drawString((width - showroom_width) / 2, height - 3.5*cm, showroom_text)
+#     
+#     # رقم الإيصال
+#     if receipt_number:
+#         receipt_label = format_arabic_text("رقم الإيصال")
+#         p.setFont(font_name, 10)
+#         p.drawString(2*cm, height - 4*cm, f"Receipt No / {receipt_label}: {receipt_number}")
+#     
+#     # معلومات الإيصال
+#     y_position = height - 5.3*cm
+#     p.setFont(font_name, 12)
+#     
+#     # رقم الطلب
+#     order_label = format_arabic_text("رقم الطلب")
+#     p.drawString(2*cm, y_position, f"Order ID / {order_label}: {order.id}")
+#     y_position -= 0.8*cm
+#     
+#     # اسم العميل
+#     customer_label = format_arabic_text("العميل")
+#     p.drawString(2*cm, y_position, f"Customer / {customer_label}: {order.customer.name}")
+#     y_position -= 0.8*cm
+#     
+#     # تاريخ الإيصال
+#     date_label = format_arabic_text("التاريخ")
+#     p.drawString(2*cm, y_position, f"Date / {date_label}: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+#     y_position -= 0.8*cm
+#     
+#     # نوع الدفع (مع دعم أنواع متعددة)
+#     payment_type_label = format_arabic_text("نوع الدفع")
+#     payment_type_formatted = format_arabic_text(payment_type_ar)
+#     
+#     # الترجمة الإنجليزية
+#     payment_type_en = {
+#         'عربون': 'Deposit',
+#         'دفعة': 'Payment',
+#         'باقي المبلغ': 'Final Payment'
+#     }.get(payment_type_ar, 'Payment')
+#     
+#     p.drawString(2*cm, y_position, f"Payment Type / {payment_type_label}: {payment_type_en} / {payment_type_formatted}")
+#     y_position -= 1*cm
+#     
+#     # التفاصيل المالية
+#     financial_label = format_arabic_text("التفاصيل المالية")
+#     p.setFont(font_name, 13)
+#     p.drawString(2*cm, y_position, f"Financial Details / {financial_label}:")
+#     y_position -= 0.8*cm
+#     
+#     p.setFont(font_name, 11)
+#     currency_label = format_arabic_text("دينار ليبي")
+#     
+#     # قيمة الطلبية
+#     order_value_label = format_arabic_text("قيمة الطلبية")
+#     p.drawString(2.5*cm, y_position, f"Order Value / {order_value_label}: {order.total_value:.2f} LYD / {currency_label}")
+#     y_position -= 0.6*cm
+#     
+#     # إجمالي المدفوعات
+#     total_paid_label = format_arabic_text("إجمالي المدفوعات")
+#     p.drawString(2.5*cm, y_position, f"Total Paid / {total_paid_label}: {order.total_paid:.2f} LYD / {currency_label}")
+#     y_position -= 0.6*cm
+#     
+#     # المتبقي
+#     remaining_label = format_arabic_text("المتبقي")
+#     p.drawString(2.5*cm, y_position, f"Remaining / {remaining_label}: {order.remaining_amount:.2f} LYD / {currency_label}")
+#     y_position -= 0.8*cm
+#     
+#     # هذه الدفعة
+#     if payment_amount:
+#         p.setFont(font_name, 13)
+#         this_payment_label = format_arabic_text("هذه الدفعة")
+#         p.drawString(2*cm, y_position, f"This Payment / {this_payment_label}: {payment_amount:.2f} LYD / {currency_label}")
+#         y_position -= 1*cm
+#     
+#     # حالة الدفع
+#     p.setFont(font_name, 12)
+#     payment_status_label = format_arabic_text("حالة الدفع")
+#     status_ar = format_arabic_text(order.payment_status)
+#     p.drawString(2*cm, y_position, f"Payment Status / {payment_status_label}: {status_ar}")
+#     y_position -= 0.8*cm
+#     
+#     # المستلم
+#     received_by_label = format_arabic_text("المستلم")
+#     p.drawString(2*cm, y_position, f"Received by / {received_by_label}: {current_user.username}")
+#     y_position -= 1.5*cm
+#     
+#     # خط فاصل
+#     p.line(2*cm, y_position, width - 2*cm, y_position)
+#     y_position -= 1*cm
+#     
+#     # ملاحظة
+#     note_label = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر")
+#     p.setFont(font_name, 9)
+#     p.drawString(2*cm, y_position, "This is a computer generated receipt.")
+#     p.drawString(2*cm, y_position - 0.5*cm, note_label)
+#     
+#     # إنهاء المستند
+#     p.showPage()
+#     p.save()
+#     
+#     buffer.seek(0)
+#     return buffer
 
 def number_to_arabic_words(number):
     """تحويل الأرقام إلى كلمات عربية - مضاف 2025-10-19"""
@@ -3578,12 +3579,11 @@ def receive_deposit(order_id):
         
         db.session.commit()
         
-        # إنشاء إيصال PDF
-        receipt_pdf = generate_receipt_pdf(
+        # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
+        receipt_pdf = generate_receipt_pdf_v2(
             order=order,
-            payment_amount=deposit_amount,
-            payment_type_ar='عربون',
-            receipt_number=payment.receipt_number
+            payment=payment,
+            customer_name=order.customer.name if order.customer else None
         )
         
         # حفظ PDF في مجلد uploads مؤقتاً
@@ -3885,12 +3885,11 @@ def add_payment(order_id):
         
         db.session.commit()
         
-        # إنشاء إيصال PDF
-        receipt_pdf = generate_receipt_pdf(
+        # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
+        receipt_pdf = generate_receipt_pdf_v2(
             order=order,
-            payment_amount=amount,
-            payment_type_ar=payment_type,
-            receipt_number=payment.receipt_number
+            payment=payment,
+            customer_name=order.customer.name if order.customer else None
         )
         
         flash(f'تم تسجيل دفعة بقيمة {amount} دينار ليبي وإصدار الإيصال', 'success')
