@@ -2998,34 +2998,98 @@ def update_order_stage(order_id, stage_id):
 
 # دوال مساعدة لدعم اللغة العربية في PDF
 def register_arabic_fonts():
-    """تسجيل الخطوط العربية لاستخدامها في PDF"""
+    """تسجيل الخطوط العربية مع دعم Linux و Windows و macOS"""
+    font_paths = [
+        # Linux paths - خطوط النظام
+        '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/arphic/ukai.ttf',
+        '/usr/share/fonts/truetype/arphic/uming.ttf',
+        
+        # Linux paths - خطوط المستخدم
+        '~/.fonts/NotoSansArabic-Regular.ttf',
+        '~/.fonts/Amiri-Regular.ttf',
+        '~/.fonts/Arial.ttf',
+        
+        # Windows paths
+        'C:\\Windows\\Fonts\\arial.ttf',
+        'C:\\Windows\\Fonts\\tahoma.ttf',
+        'C:\\Windows\\Fonts\\calibri.ttf',
+        'C:\\Windows\\Fonts\\segoeui.ttf',
+        
+        # macOS paths
+        '/System/Library/Fonts/Arial.ttf',
+        '/Library/Fonts/Arial.ttf',
+        '/System/Library/Fonts/Helvetica.ttc',
+    ]
+    
+    for font_path in font_paths:
+        try:
+            # توسيع مسار المستخدم
+            expanded_path = os.path.expanduser(font_path)
+            
+            if os.path.exists(expanded_path):
+                # تسجيل الخط
+                font_name = f"Arabic-{os.path.basename(font_path).split('.')[0]}"
+                pdfmetrics.registerFont(TTFont(font_name, expanded_path))
+                print(f"✅ تم تسجيل الخط: {font_name} من {expanded_path}")
+                return font_name
+        except Exception as e:
+            print(f"❌ فشل تسجيل الخط {font_path}: {str(e)}")
+            continue
+    
+    print("⚠️ لم يتم العثور على خطوط عربية مناسبة")
+    return None
+
+def test_arabic_fonts():
+    """اختبار الخطوط العربية المتاحة"""
+    test_text = "إيصال دفع - Kitchen Factory"
+    
+    print("🔍 اختبار الخطوط العربية:")
+    print(f"النص التجريبي: {test_text}")
+    
+    # اختبار معالجة النص
     try:
-        # محاولة استخدام Arial من Windows (يدعم العربية)
-        arial_path = 'C:\\Windows\\Fonts\\arial.ttf'
-        if os.path.exists(arial_path):
-            pdfmetrics.registerFont(TTFont('Arial-Unicode', arial_path))
-            return 'Arial-Unicode'
-        
-        # البديل: Tahoma
-        tahoma_path = 'C:\\Windows\\Fonts\\tahoma.ttf'
-        if os.path.exists(tahoma_path):
-            pdfmetrics.registerFont(TTFont('Tahoma', tahoma_path))
-            return 'Tahoma'
-        
-        return None
-        
+        reshaped = reshape(test_text)
+        bidi_text = get_display(reshaped)
+        print(f"✅ معالجة النص: {bidi_text}")
     except Exception as e:
-        print(f"خطأ في تسجيل الخطوط: {str(e)}")
-        return None
+        print(f"❌ فشل معالجة النص: {str(e)}")
+    
+    # اختبار تسجيل الخطوط
+    font_name = register_arabic_fonts()
+    if font_name:
+        print(f"✅ الخط المسجل: {font_name}")
+    else:
+        print("❌ لم يتم تسجيل أي خط")
+    
+    return font_name
 
 def format_arabic_text(text):
-    """تنسيق النص العربي للعرض الصحيح في PDF"""
+    """تنسيق النص العربي مع معالجة أفضل للأخطاء"""
+    if not text or not isinstance(text, str):
+        return ""
+    
     try:
-        reshaped_text = reshape(text)
+        # تنظيف النص
+        cleaned_text = text.strip()
+        if not cleaned_text:
+            return ""
+        
+        # معالجة النص العربي
+        reshaped_text = reshape(cleaned_text)
         bidi_text = get_display(reshaped_text)
-        return bidi_text
+        
+        # التحقق من النتيجة
+        if bidi_text and len(bidi_text) > 0:
+            return bidi_text
+        else:
+            print(f"⚠️ فشل في معالجة النص: {text}")
+            return cleaned_text
+            
     except Exception as e:
-        print(f"خطأ في تنسيق النص العربي: {str(e)}")
+        print(f"❌ خطأ في تنسيق النص العربي '{text}': {str(e)}")
         return text
 
 # دالة لإنشاء إيصال قبض PDF
@@ -3037,9 +3101,18 @@ def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون
     p = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     
-    # تسجيل الخط العربي
+    # تسجيل الخط العربي مع fallback محسن
     arabic_font = register_arabic_fonts()
-    font_name = arabic_font if arabic_font else "Helvetica"
+    
+    # تحسين اختيار الخط
+    if arabic_font:
+        font_name = arabic_font
+        print(f"✅ استخدام الخط العربي: {font_name}")
+    else:
+        # fallback للخطوط المتاحة
+        available_fonts = ['Helvetica-Bold', 'Helvetica', 'Times-Bold', 'Times-Roman']
+        font_name = available_fonts[0]  # استخدام أول خط متاح
+        print(f"⚠️ استخدام الخط الافتراضي: {font_name}")
     
     # رأس الإيصال
     p.setFont(font_name, 16)
@@ -3267,6 +3340,28 @@ def receive_deposit(order_id):
         db.session.rollback()
         flash(f'حدث خطأ: {str(e)}', 'danger')
         return redirect(url_for('order_detail', order_id=order_id))
+
+@app.route('/test-fonts')
+@login_required
+def test_fonts():
+    """اختبار الخطوط العربية"""
+    if current_user.role not in ['مدير']:
+        flash('ليس لديك صلاحية لاختبار الخطوط', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # اختبار الخطوط
+        font_name = test_arabic_fonts()
+        
+        if font_name:
+            flash(f'تم العثور على خط عربي: {font_name}', 'success')
+        else:
+            flash('لم يتم العثور على خطوط عربية مناسبة', 'warning')
+        
+        return redirect(url_for('dashboard'))
+    except Exception as e:
+        flash(f'خطأ في اختبار الخطوط: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
 
 @app.route('/download-receipt/<filename>')
 @login_required
