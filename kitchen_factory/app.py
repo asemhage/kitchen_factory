@@ -2193,6 +2193,63 @@ def get_archive_dashboard_stats() -> Dict[str, Any]:
     
     return stats
 
+# ==================== Helper Functions لنظام الدفع المرن - مضاف 2025-10-19 ====================
+
+def allocate_payment_fifo(payment, supplier_id, amount):
+    """
+    توزيع المدفوعات حسب FIFO (أول وارد، أول مخرج)
+    
+    Args:
+        payment: كائن SupplierPayment
+        supplier_id: معرف المورد
+        amount: المبلغ المراد توزيعه
+    
+    Returns:
+        list: قائمة بكائنات PaymentAllocation
+    """
+    # جلب الفواتير غير المدفوعة بالكامل مرتبة حسب التاريخ
+    invoices = SupplierInvoice.query.filter_by(
+        supplier_id=supplier_id,
+        is_active=True
+    ).filter(
+        SupplierInvoice.debt_status.in_(['unpaid', 'partial'])
+    ).order_by(SupplierInvoice.invoice_date.asc()).all()
+    
+    remaining_payment = amount
+    allocations = []
+    
+    for invoice in invoices:
+        if remaining_payment <= 0:
+            break
+        
+        # حساب المبلغ المتبقي للفاتورة
+        invoice_remaining = invoice.remaining_amount
+        
+        if invoice_remaining <= 0:
+            continue
+        
+        # تخصيص المبلغ (أقل من المتبقي أو المدفوع)
+        allocated = min(remaining_payment, invoice_remaining)
+        
+        # تحديث الفاتورة
+        invoice.paid_amount += allocated
+        invoice.debt_status = 'paid' if invoice.paid_amount >= invoice.debt_amount else 'partial'
+        
+        # إنشاء سجل التوزيع
+        allocation = PaymentAllocation(
+            payment_id=payment.id,
+            invoice_id=invoice.id,
+            allocated_amount=allocated,
+            allocation_method='auto_fifo'
+        )
+        
+        db.session.add(allocation)
+        allocations.append(allocation)
+        
+        remaining_payment -= allocated
+    
+    return allocations, remaining_payment
+
 # ==================== Helper Functions لسياسات التسعير ====================
 
 def update_material_cost_price(material, new_purchase_price, quantity, invoice_id=None, user=None):
@@ -4858,13 +4915,187 @@ def overdue_tasks_report():
     
     return render_template('reports/overdue_tasks.html', overdue_tasks=overdue_tasks)
 
-# ==================== تقارير الموردين ====================
+# ==================== تقارير الموردين - النظام الجديد ====================
 
-# تم حذف تقرير suppliers_debts - سيتم استبداله بالنظام الجديد
+@app.route('/reports/suppliers_debts')
+@login_required
+def suppliers_debts_report():
+    """تقرير ديون الموردين - النظام الجديد - مضاف 2025-10-19"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب جميع الموردين النشطين
+    suppliers = Supplier.query.filter_by(is_active=True).all()
+    
+    # حساب الديون لكل مورد
+    suppliers_data = []
+    total_debts = 0
+    
+    for supplier in suppliers:
+        # جلب الفواتير النشطة غير المدفوعة بالكامل
+        active_invoices = [inv for inv in supplier.invoices 
+                          if inv.is_active and inv.debt_status != 'paid']
+        
+        total_invoices = len([inv for inv in supplier.invoices if inv.is_active])
+        unpaid_invoices = len(active_invoices)
+        supplier_debt = supplier.total_debt
+        total_debts += supplier_debt
+        
+        # حساب إجمالي المشتريات
+        total_purchases = sum(inv.final_amount for inv in supplier.invoices if inv.is_active)
+        
+        suppliers_data.append({
+            'supplier': supplier,
+            'total_invoices': total_invoices,
+            'unpaid_invoices': unpaid_invoices,
+            'total_debt': supplier_debt,
+            'total_purchases': total_purchases,
+            'total_paid': supplier.total_paid
+        })
+    
+    # ترتيب حسب المديونية (الأعلى أولاً)
+    suppliers_data.sort(key=lambda x: x['total_debt'], reverse=True)
+    
+    return render_template('reports/suppliers_debts.html', 
+                         suppliers_data=suppliers_data, 
+                         total_debts=total_debts)
 
-# تم حذف تقرير overdue_invoices - سيتم استبداله بالنظام الجديد
+@app.route('/reports/overdue_invoices')
+@login_required
+def overdue_invoices_report():
+    """تقرير الفواتير المتأخرة - النظام الجديد - مضاف 2025-10-19"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب الفواتير المتأخرة
+    today = datetime.now(timezone.utc).date()
+    
+    overdue_invoices = SupplierInvoice.query.filter(
+        SupplierInvoice.due_date.isnot(None),
+        SupplierInvoice.due_date < today,
+        SupplierInvoice.debt_status != 'paid',
+        SupplierInvoice.is_active == True
+    ).order_by(SupplierInvoice.due_date.asc()).all()
+    
+    # حساب الإحصائيات
+    total_overdue_amount = sum(inv.remaining_amount for inv in overdue_invoices)
+    
+    # تصنيف حسب مدة التأخير
+    invoices_by_delay = {
+        'أقل من أسبوع': [],
+        'أسبوع إلى شهر': [],
+        'أكثر من شهر': []
+    }
+    
+    for invoice in overdue_invoices:
+        days_overdue = (today - invoice.due_date).days
+        if days_overdue < 7:
+            invoices_by_delay['أقل من أسبوع'].append(invoice)
+        elif days_overdue < 30:
+            invoices_by_delay['أسبوع إلى شهر'].append(invoice)
+        else:
+            invoices_by_delay['أكثر من شهر'].append(invoice)
+    
+    return render_template('reports/overdue_invoices.html',
+                         overdue_invoices=overdue_invoices,
+                         invoices_by_delay=invoices_by_delay,
+                         total_overdue_amount=total_overdue_amount,
+                         today=today)
 
-# تم حذف تقرير suppliers_performance - سيتم استبداله بالنظام الجديد
+@app.route('/reports/suppliers_performance')
+@login_required
+def suppliers_performance_report():
+    """تقرير أداء الموردين - النظام الجديد - مضاف 2025-10-19"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب جميع الموردين النشطين
+    suppliers = Supplier.query.filter_by(is_active=True).all()
+    
+    suppliers_performance = []
+    
+    for supplier in suppliers:
+        # حساب الإحصائيات
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        active_payments = [pay for pay in supplier.payments if pay.is_active]
+        
+        total_invoices = len(active_invoices)
+        total_purchases = sum(inv.final_amount for inv in active_invoices)
+        total_paid = sum(pay.amount for pay in active_payments)
+        total_remaining = supplier.total_debt
+        
+        # حساب متوسط مبلغ الفاتورة
+        avg_invoice = total_purchases / total_invoices if total_invoices > 0 else 0
+        
+        # حساب نسبة الدفع
+        payment_rate = (total_paid / total_purchases * 100) if total_purchases > 0 else 0
+        
+        # آخر تاريخ شراء
+        last_purchase = max((inv.invoice_date for inv in active_invoices), default=None)
+        
+        # آخر تاريخ دفع
+        last_payment = max((pay.payment_date for pay in active_payments), default=None)
+        
+        suppliers_performance.append({
+            'supplier': supplier,
+            'total_invoices': total_invoices,
+            'total_purchases': total_purchases,
+            'total_paid': total_paid,
+            'total_remaining': total_remaining,
+            'avg_invoice': avg_invoice,
+            'payment_rate': payment_rate,
+            'last_purchase': last_purchase,
+            'last_payment': last_payment
+        })
+    
+    # ترتيب حسب إجمالي المشتريات (الأعلى أولاً)
+    suppliers_performance.sort(key=lambda x: x['total_purchases'], reverse=True)
+    
+    return render_template('reports/suppliers_performance.html',
+                         suppliers_performance=suppliers_performance)
+
+@app.route('/reports/payment_allocations')
+@login_required
+def payment_allocations_report():
+    """تقرير توزيع المدفوعات - النظام الجديد - مضاف 2025-10-19"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب جميع التوزيعات
+    allocations = PaymentAllocation.query.order_by(PaymentAllocation.allocation_date.desc()).all()
+    
+    # إحصائيات
+    total_allocations = len(allocations)
+    total_allocated = sum(a.allocated_amount for a in allocations)
+    
+    # تصنيف حسب طريقة التوزيع
+    allocations_by_method = {
+        'auto_fifo': [],
+        'auto_priority': [],
+        'manual': []
+    }
+    
+    for allocation in allocations:
+        method = allocation.allocation_method or 'manual'
+        if method in allocations_by_method:
+            allocations_by_method[method].append(allocation)
+    
+    stats = {
+        'total_allocations': total_allocations,
+        'total_allocated': total_allocated,
+        'auto_fifo_count': len(allocations_by_method['auto_fifo']),
+        'auto_priority_count': len(allocations_by_method['auto_priority']),
+        'manual_count': len(allocations_by_method['manual'])
+    }
+    
+    return render_template('reports/payment_allocations.html',
+                         allocations=allocations,
+                         allocations_by_method=allocations_by_method,
+                         stats=stats)
 
 # ==================== تقارير متقدمة ====================
 
@@ -6563,19 +6794,521 @@ if __name__ == '__main__':
         
         return redirect(url_for('showroom_detail', showroom_id=showroom.id))
 
-    # ==================== مسارات إدارة الموردين ====================
-    # تم حذف جميع مسارات الموردين القديمة - سيتم استبدالها بالنظام الجديد
+    # ==================== مسارات إدارة الموردين - النظام الجديد ====================
+    
+    @app.route('/suppliers')
+    @login_required
+    def suppliers_list():
+        """عرض قائمة الموردين - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى صفحة الموردين', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # جلب الموردين النشطين
+        suppliers = Supplier.query.filter_by(is_active=True).order_by(Supplier.created_at.desc()).all()
+        
+        # إحصائيات لكل مورد
+        for supplier in suppliers:
+            supplier.invoices_count = len([inv for inv in supplier.invoices if inv.is_active])
+            supplier.total_invoices_amount = sum(inv.final_amount for inv in supplier.invoices if inv.is_active)
+        
+        return render_template('suppliers.html', suppliers=suppliers)
+    
+    @app.route('/supplier/new', methods=['GET', 'POST'])
+    @login_required
+    def new_supplier():
+        """إضافة مورد جديد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة مورد جديد', 'danger')
+            return redirect(url_for('suppliers_list'))
+        
+        if request.method == 'POST':
+            name = request.form.get('name')
+            code = request.form.get('code')
+            phone = request.form.get('phone')
+            email = request.form.get('email')
+            address = request.form.get('address')
+            tax_id = request.form.get('tax_id')
+            contact_person = request.form.get('contact_person')
+            payment_terms = request.form.get('payment_terms')
+            notes = request.form.get('notes')
+            
+            # التحقق من البيانات المطلوبة
+            if not name:
+                flash('اسم المورد مطلوب', 'danger')
+                return render_template('new_supplier.html')
+            
+            # التحقق من عدم تكرار الكود
+            if code:
+                existing_supplier = Supplier.query.filter_by(code=code, is_active=True).first()
+                if existing_supplier:
+                    flash(f'كود المورد "{code}" مستخدم بالفعل', 'danger')
+                    return render_template('new_supplier.html')
+            
+            try:
+                # الحصول على معرف الصالة
+                showroom_id = get_user_showroom_id()
+                
+                supplier = Supplier(
+                    name=name,
+                    code=code,
+                    phone=phone,
+                    email=email,
+                    address=address,
+                    tax_id=tax_id,
+                    contact_person=contact_person,
+                    payment_terms=payment_terms,
+                    notes=notes,
+                    showroom_id=showroom_id,
+                    created_by=current_user.username
+                )
+                
+                db.session.add(supplier)
+                db.session.flush()
+                
+                # إنشاء سجل دين للمورد
+                debt = SupplierDebt(
+                    supplier_id=supplier.id,
+                    total_debt=0,
+                    paid_amount=0,
+                    remaining_debt=0
+                )
+                
+                db.session.add(debt)
+                db.session.commit()
+                
+                flash(f'تم إضافة المورد "{name}" بنجاح', 'success')
+                return redirect(url_for('suppliers_list'))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء إضافة المورد: {str(e)}', 'danger')
+        
+        return render_template('new_supplier.html')
+    
+    @app.route('/supplier/<int:supplier_id>')
+    @login_required
+    def supplier_detail(supplier_id):
+        """عرض تفاصيل مورد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # الفواتير النشطة
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        
+        # المدفوعات النشطة
+        active_payments = [pay for pay in supplier.payments if pay.is_active]
+        
+        # إحصائيات
+        stats = {
+            'total_invoices': len(active_invoices),
+            'total_amount': sum(inv.final_amount for inv in active_invoices),
+            'total_paid': supplier.total_paid,
+            'total_remaining': supplier.total_debt,
+            'payments_count': len(active_payments)
+        }
+        
+        return render_template('supplier_detail.html', 
+                             supplier=supplier, 
+                             stats=stats, 
+                             active_invoices=active_invoices,
+                             active_payments=active_payments)
+    
+    @app.route('/supplier/<int:supplier_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_supplier(supplier_id):
+        """تعديل بيانات مورد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لتعديل المورد', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # التحقق من أن المورد نشط
+        if not supplier.is_active:
+            flash('هذا المورد غير نشط ولا يمكن تعديله', 'danger')
+            return redirect(url_for('suppliers_list'))
+        
+        if request.method == 'POST':
+            name = request.form.get('name')
+            code = request.form.get('code')
+            
+            # التحقق من عدم تكرار الكود
+            if code and code != supplier.code:
+                existing_supplier = Supplier.query.filter_by(code=code, is_active=True).filter(Supplier.id != supplier.id).first()
+                if existing_supplier:
+                    flash(f'كود المورد "{code}" مستخدم بالفعل', 'danger')
+                    return render_template('edit_supplier.html', supplier=supplier)
+            
+            try:
+                supplier.name = name
+                supplier.code = code
+                supplier.phone = request.form.get('phone')
+                supplier.email = request.form.get('email')
+                supplier.address = request.form.get('address')
+                supplier.tax_id = request.form.get('tax_id')
+                supplier.contact_person = request.form.get('contact_person')
+                supplier.payment_terms = request.form.get('payment_terms')
+                supplier.notes = request.form.get('notes')
+                supplier.updated_at = datetime.now(timezone.utc)
+                
+                db.session.commit()
+                
+                flash(f'تم تحديث بيانات المورد "{name}" بنجاح', 'success')
+                return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تحديث المورد: {str(e)}', 'danger')
+        
+        return render_template('edit_supplier.html', supplier=supplier)
+    
+    @app.route('/supplier/<int:supplier_id>/delete', methods=['POST'])
+    @login_required
+    def delete_supplier(supplier_id):
+        """حذف مورد (Soft Delete) - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role != 'مدير':
+            flash('ليس لديك صلاحية لحذف الموردين', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # التحقق من وجود فواتير نشطة
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        if active_invoices:
+            flash(f'لا يمكن حذف المورد لأنه لديه {len(active_invoices)} فاتورة نشطة', 'danger')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+        
+        # التحقق من وجود ديون
+        if supplier.total_debt > 0:
+            flash(f'لا يمكن حذف المورد لأنه لديه ديون متبقية بمبلغ {supplier.total_debt:.2f} دينار', 'danger')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+        
+        try:
+            # Soft Delete
+            supplier.is_active = False
+            
+            db.session.commit()
+            
+            flash(f'تم حذف المورد "{supplier.name}" بنجاح', 'success')
+            return redirect(url_for('suppliers_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'حدث خطأ أثناء حذف المورد: {str(e)}', 'danger')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
 
-    # ==================== مسارات إدارة الفواتير ====================
-    # تم حذف جميع مسارات الفواتير القديمة - سيتم استبدالها بالنظام الجديد
+    # ==================== مسارات إدارة الفواتير - النظام الجديد ====================
     
-    # تم حذف مسار new_invoice - سيتم استبداله بالنظام الجديد
+    @app.route('/invoices')
+    @login_required
+    def invoices_list():
+        """عرض قائمة فواتير الشراء - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى صفحة الفواتير', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # جلب الفواتير النشطة
+        invoices = SupplierInvoice.query.filter_by(is_active=True).order_by(SupplierInvoice.invoice_date.desc()).all()
+        
+        # إحصائيات
+        total_invoices = len(invoices)
+        total_amount = sum(inv.final_amount for inv in invoices)
+        total_paid = sum(inv.paid_amount for inv in invoices)
+        total_remaining = sum(inv.remaining_amount for inv in invoices)
+        
+        # الفواتير المتأخرة
+        today = datetime.now(timezone.utc).date()
+        overdue_invoices = [inv for inv in invoices 
+                           if inv.due_date and inv.due_date < today 
+                           and inv.debt_status != 'paid']
+        
+        stats = {
+            'total_invoices': total_invoices,
+            'total_amount': total_amount,
+            'total_paid': total_paid,
+            'total_remaining': total_remaining,
+            'overdue_count': len(overdue_invoices)
+        }
+        
+        return render_template('invoices.html', invoices=invoices, stats=stats)
     
-    # تم حذف مسار invoice_detail - سيتم استبداله بالنظام الجديد
+    @app.route('/invoice/new', methods=['GET', 'POST'])
+    @login_required
+    def new_invoice():
+        """إضافة فاتورة شراء جديدة - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة فاتورة', 'danger')
+            return redirect(url_for('invoices_list'))
+        
+        if request.method == 'POST':
+            try:
+                # بيانات الفاتورة
+                supplier_id = request.form.get('supplier_id')
+                invoice_number = request.form.get('invoice_number')
+                invoice_date = request.form.get('invoice_date')
+                due_date = request.form.get('due_date')
+                notes = request.form.get('notes')
+                
+                # التحقق من البيانات المطلوبة
+                if not supplier_id or not invoice_number:
+                    flash('المورد ورقم الفاتورة مطلوبان', 'danger')
+                    suppliers = Supplier.query.filter_by(is_active=True).all()
+                    materials = Material.query.filter_by(is_active=True).all()
+                    return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
+                
+                # التحقق من عدم تكرار رقم الفاتورة
+                existing = SupplierInvoice.query.filter_by(invoice_number=invoice_number, is_active=True).first()
+                if existing:
+                    flash(f'رقم الفاتورة "{invoice_number}" مستخدم بالفعل', 'danger')
+                    suppliers = Supplier.query.filter_by(is_active=True).all()
+                    materials = Material.query.filter_by(is_active=True).all()
+                    return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
+                
+                # الحصول على الصالة
+                showroom_id = get_user_showroom_id()
+                
+                # إنشاء الفاتورة
+                invoice = SupplierInvoice(
+                    supplier_id=int(supplier_id),
+                    showroom_id=showroom_id,
+                    invoice_number=invoice_number,
+                    invoice_date=datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else datetime.now(timezone.utc).date(),
+                    due_date=datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None,
+                    notes=notes,
+                    created_by=current_user.username
+                )
+                
+                db.session.add(invoice)
+                db.session.flush()
+                
+                # إضافة المواد (نفس المنطق القديم)
+                material_ids = request.form.getlist('material_id[]')
+                quantities = request.form.getlist('quantity[]')
+                prices = request.form.getlist('price[]')
+                
+                total_amount = 0
+                
+                for mat_id, qty, price in zip(material_ids, quantities, prices):
+                    if mat_id and qty and price:
+                        quantity = float(qty)
+                        purchase_price = float(price)
+                        line_total = quantity * purchase_price
+                        total_amount += line_total
+                        
+                        # تحديث كمية المادة في المخزن
+                        material = db.session.get(Material, int(mat_id))
+                        if material:
+                            old_qty = material.quantity_available
+                            material.quantity_available += quantity
+                            
+                            # تحديث سعر التكلفة
+                            success, message = update_material_cost_price(
+                                material=material,
+                                new_purchase_price=purchase_price,
+                                quantity=quantity,
+                                invoice_id=invoice.id,
+                                user=current_user
+                            )
+                            
+                            # تسجيل تغيير الكمية
+                            log_quantity_change(
+                                table='material',
+                                record_id=material.id,
+                                old_qty=old_qty,
+                                new_qty=material.quantity_available,
+                                reason=f'إضافة من فاتورة {invoice.invoice_number}'
+                            )
+                
+                # حساب المبلغ النهائي
+                invoice.total_amount = total_amount
+                invoice.final_amount = total_amount
+                invoice.debt_amount = total_amount
+                invoice.paid_amount = 0
+                
+                # تحديث سجل الدين للمورد
+                supplier = db.session.get(Supplier, int(supplier_id))
+                if supplier and supplier.debt:
+                    supplier.debt.total_debt += total_amount
+                    supplier.debt.remaining_debt += total_amount
+                
+                db.session.commit()
+                
+                flash(f'تم إضافة الفاتورة "{invoice_number}" بنجاح', 'success')
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء إضافة الفاتورة: {str(e)}', 'danger')
+        
+        # GET request
+        suppliers = Supplier.query.filter_by(is_active=True).all()
+        materials = Material.query.filter_by(is_active=True).all()
+        
+        # التحقق من المتطلبات المسبقة
+        if not suppliers:
+            flash('⚠️ يجب إضافة مورد واحد على الأقل قبل إنشاء فاتورة', 'warning')
+            return redirect(url_for('invoices_list'))
+        
+        if not materials:
+            flash('⚠️ يجب إضافة مادة واحدة على الأقل قبل إنشاء فاتورة', 'warning')
+            return redirect(url_for('invoices_list'))
+        
+        return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
     
-    # تم حذف مسار edit_invoice - سيتم استبداله بالنظام الجديد
-    # تم حذف مسار cancel_invoice - سيتم استبداله بالنظام الجديد
-    # تم حذف مسار add_invoice_payment - سيتم استبداله بالنظام الجديد
+    @app.route('/invoice/<int:invoice_id>')
+    @login_required
+    def invoice_detail(invoice_id):
+        """عرض تفاصيل فاتورة - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(SupplierInvoice, invoice_id)
+        
+        # حساب الإحصائيات
+        stats = {
+            'total_amount': invoice.total_amount,
+            'discount': invoice.discount_amount,
+            'tax': invoice.tax_amount,
+            'final_amount': invoice.final_amount,
+            'paid_amount': invoice.paid_amount,
+            'remaining_amount': invoice.remaining_amount,
+            'allocations_count': len(invoice.payment_allocations)
+        }
+        
+        return render_template('invoice_detail.html', invoice=invoice, stats=stats)
+    
+    # ==================== مسارات إدارة المدفوعات - النظام الجديد ====================
+    
+    @app.route('/supplier/<int:supplier_id>/add_payment', methods=['GET', 'POST'])
+    @login_required
+    def add_supplier_payment(supplier_id):
+        """إضافة دفعة مرنة لمورد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة دفعة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # التحقق من وجود ديون
+        if supplier.total_debt <= 0:
+            flash('لا توجد ديون لهذا المورد', 'warning')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+        
+        if request.method == 'POST':
+            try:
+                amount = float(request.form.get('amount'))
+                payment_method = request.form.get('payment_method', 'نقد')
+                payment_date = request.form.get('payment_date')
+                reference_number = request.form.get('reference_number')
+                notes = request.form.get('notes')
+                allocation_method = request.form.get('allocation_method', 'auto_fifo')
+                
+                # التحقق من المبلغ
+                if amount <= 0:
+                    flash('المبلغ يجب أن يكون أكبر من صفر', 'danger')
+                    return render_template('add_supplier_payment.html', supplier=supplier)
+                
+                if amount > supplier.total_debt:
+                    flash(f'المبلغ أكبر من إجمالي الديون ({supplier.total_debt:.2f})', 'warning')
+                
+                # إنشاء الدفعة
+                payment = SupplierPayment(
+                    supplier_id=supplier.id,
+                    debt_id=supplier.debt.id,
+                    amount=amount,
+                    payment_method=payment_method,
+                    payment_date=datetime.strptime(payment_date, '%Y-%m-%d') if payment_date else datetime.now(timezone.utc),
+                    reference_number=reference_number,
+                    notes=notes,
+                    payment_type='flexible',
+                    allocation_method=allocation_method,
+                    created_by=current_user.username
+                )
+                
+                db.session.add(payment)
+                db.session.flush()
+                
+                # توزيع تلقائي حسب FIFO
+                if allocation_method == 'auto_fifo':
+                    allocations, remaining = allocate_payment_fifo(payment, supplier.id, amount)
+                    
+                    # تحديث سجل الدين
+                    allocated_total = sum(a.allocated_amount for a in allocations)
+                    supplier.debt.paid_amount += allocated_total
+                    supplier.debt.remaining_debt -= allocated_total
+                    
+                    db.session.commit()
+                    
+                    flash(f'تم تسجيل دفعة بمبلغ {amount:.2f} دينار وتوزيعها على {len(allocations)} فاتورة', 'success')
+                else:
+                    # توزيع يدوي (يُضاف لاحقاً)
+                    db.session.commit()
+                    flash(f'تم تسجيل دفعة بمبلغ {amount:.2f} دينار', 'success')
+                
+                return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تسجيل الدفعة: {str(e)}', 'danger')
+        
+        # GET request - جلب الفواتير غير المدفوعة
+        unpaid_invoices = [inv for inv in supplier.invoices 
+                          if inv.is_active and inv.debt_status != 'paid']
+        
+        return render_template('add_supplier_payment.html', 
+                             supplier=supplier, 
+                             unpaid_invoices=unpaid_invoices)
+    
+    @app.route('/payments')
+    @login_required
+    def payments_list():
+        """عرض قائمة المدفوعات - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى صفحة المدفوعات', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # جلب المدفوعات النشطة
+        payments = SupplierPayment.query.filter_by(is_active=True).order_by(SupplierPayment.payment_date.desc()).all()
+        
+        # إحصائيات
+        total_payments = len(payments)
+        total_amount = sum(pay.amount for pay in payments)
+        total_allocated = sum(pay.total_allocated for pay in payments)
+        total_unallocated = sum(pay.unallocated_amount for pay in payments)
+        
+        stats = {
+            'total_payments': total_payments,
+            'total_amount': total_amount,
+            'total_allocated': total_allocated,
+            'total_unallocated': total_unallocated
+        }
+        
+        return render_template('payments.html', payments=payments, stats=stats)
+    
+    @app.route('/payment/<int:payment_id>')
+    @login_required
+    def payment_detail(payment_id):
+        """عرض تفاصيل دفعة - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        payment = db.get_or_404(SupplierPayment, payment_id)
+        
+        # إحصائيات
+        stats = {
+            'amount': payment.amount,
+            'allocated': payment.total_allocated,
+            'unallocated': payment.unallocated_amount,
+            'allocations_count': len(payment.allocations)
+        }
+        
+        return render_template('payment_detail.html', payment=payment, stats=stats)
 
     # ==================== API: تغيير فلتر الصالة ====================
     @app.route('/set_showroom_filter', methods=['POST'])

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير توزيع المدفوعات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-chart-bar"></i> تقرير توزيع المدفوعات</h2>
+            <p class="text-muted">تفاصيل توزيع المدفوعات على الفواتير</p>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">الرئيسية</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('reports') }}">التقارير</a></li>
+                    <li class="breadcrumb-item active">تقرير توزيع المدفوعات</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- إحصائيات -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-th-list"></i> إجمالي التوزيعات</h5>
+                    <h2>{{ stats.total_allocations }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-money-bill-wave"></i> إجمالي الموزع</h5>
+                    <h2>{{ "%.2f"|format(stats.total_allocated) }} د.ل</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-robot"></i> تلقائي (FIFO)</h5>
+                    <h2>{{ stats.auto_fifo_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5><i class="fas fa-star"></i> أولوية</h5>
+                    <h2>{{ stats.auto_priority_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-hand-pointer"></i> يدوي</h5>
+                    <h2>{{ stats.manual_count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول التوزيعات -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">تفاصيل التوزيعات</h5>
+        </div>
+        <div class="card-body">
+            {% if allocations %}
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>الدفعة</th>
+                        <th>المورد</th>
+                        <th>الفاتورة</th>
+                        <th>المبلغ الموزع</th>
+                        <th>نسبة التوزيع</th>
+                        <th>طريقة التوزيع</th>
+                        <th>تاريخ التوزيع</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for allocation in allocations %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <a href="{{ url_for('payment_detail', payment_id=allocation.payment.id) }}">
+                                #{{ allocation.payment.id }}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('supplier_detail', supplier_id=allocation.payment.supplier.id) }}">
+                                {{ allocation.payment.supplier.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('invoice_detail', invoice_id=allocation.invoice.id) }}">
+                                {{ allocation.invoice.invoice_number }}
+                            </a>
+                        </td>
+                        <td class="text-success">
+                            <strong>{{ "%.2f"|format(allocation.allocated_amount) }}</strong> د.ل
+                        </td>
+                        <td>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: {{ allocation.allocation_percentage }}%">
+                                    {{ "%.1f"|format(allocation.allocation_percentage) }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if allocation.allocation_method == 'auto_fifo' %}
+                            <span class="badge badge-primary">تلقائي (FIFO)</span>
+                            {% elif allocation.allocation_method == 'auto_priority' %}
+                            <span class="badge badge-info">أولوية</span>
+                            {% else %}
+                            <span class="badge badge-secondary">يدوي</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ allocation.allocation_date.strftime('%Y-%m-%d %H:%M') if allocation.allocation_date else '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('payment_detail', payment_id=allocation.payment.id) }}" 
+                               class="btn btn-sm btn-info" title="عرض الدفعة">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ url_for('invoice_detail', invoice_id=allocation.invoice.id) }}" 
+                               class="btn btn-sm btn-secondary" title="عرض الفاتورة">
+                                <i class="fas fa-file-invoice"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-success">
+                        <th colspan="4" class="text-right">الإجمالي:</th>
+                        <th class="text-success">{{ "%.2f"|format(stats.total_allocated) }} د.ل</th>
+                        <th colspan="4"></th>
+                    </tr>
+                </tfoot>
+            </table>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h4>لا توجد مدفوعات</h4>
+                <p>لإضافة دفعة جديدة، اذهب إلى صفحة المورد</p>
+                <a href="{{ url_for('suppliers_list') }}" class="btn btn-primary">
+                    <i class="fas fa-truck"></i> قائمة الموردين
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ملاحظة حول النظام الجديد -->
+    <div class="alert alert-info mt-4">
+        <h5><i class="fas fa-lightbulb"></i> ميزات النظام الجديد:</h5>
+        <ul>
+            <li><strong>دفع مرن:</strong> لا حاجة لربط الدفع بفاتورة محددة</li>
+            <li><strong>توزيع تلقائي:</strong> النظام يوزع المدفوعات تلقائياً على الفواتير غير المدفوعة</li>
+            <li><strong>شفافية كاملة:</strong> تتبع دقيق لكل قرش وكيفية توزيعه</li>
+            <li><strong>مرونة:</strong> دعم التوزيع التلقائي (FIFO) أو اليدوي</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+

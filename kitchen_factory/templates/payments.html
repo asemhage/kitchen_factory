@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة المدفوعات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-receipt"></i> إدارة المدفوعات</h2>
+            <p class="text-muted">النظام الجديد - دفع مرن وتوزيع تلقائي</p>
+        </div>
+    </div>
+
+    <!-- إحصائيات سريعة -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-receipt"></i> إجمالي المدفوعات</h5>
+                    <h2>{{ stats.total_payments }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-money-bill-wave"></i> إجمالي المبالغ</h5>
+                    <h2>{{ "%.2f"|format(stats.total_amount) }} د.ل</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-check-circle"></i> الموزع</h5>
+                    <h2>{{ "%.2f"|format(stats.total_allocated) }} د.ل</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5><i class="fas fa-hourglass-half"></i> غير الموزع</h5>
+                    <h2>{{ "%.2f"|format(stats.total_unallocated) }} د.ل</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول المدفوعات -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">قائمة المدفوعات</h5>
+        </div>
+        <div class="card-body">
+            {% if payments %}
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>المورد</th>
+                        <th>المبلغ</th>
+                        <th>الموزع</th>
+                        <th>المتبقي</th>
+                        <th>طريقة الدفع</th>
+                        <th>التاريخ</th>
+                        <th>طريقة التوزيع</th>
+                        <th>عدد الفواتير</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.id }}</td>
+                        <td>
+                            <a href="{{ url_for('supplier_detail', supplier_id=payment.supplier.id) }}">
+                                {{ payment.supplier.name }}
+                            </a>
+                        </td>
+                        <td class="text-success">
+                            <strong>{{ "%.2f"|format(payment.amount) }}</strong> د.ل
+                        </td>
+                        <td class="text-info">
+                            {{ "%.2f"|format(payment.total_allocated) }} د.ل
+                        </td>
+                        <td class="text-warning">
+                            {{ "%.2f"|format(payment.unallocated_amount) }} د.ل
+                        </td>
+                        <td>
+                            {% if payment.payment_method == 'نقد' %}
+                            <span class="badge badge-success">نقد</span>
+                            {% elif payment.payment_method == 'بنك' %}
+                            <span class="badge badge-primary">بنك</span>
+                            {% elif payment.payment_method == 'شيك' %}
+                            <span class="badge badge-warning">شيك</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ payment.payment_method }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ payment.payment_date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {% if payment.allocation_method == 'auto_fifo' %}
+                            <span class="badge badge-primary">FIFO</span>
+                            {% elif payment.allocation_method == 'auto_priority' %}
+                            <span class="badge badge-info">أولوية</span>
+                            {% else %}
+                            <span class="badge badge-secondary">يدوي</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ payment.allocations|length }}</td>
+                        <td>
+                            <a href="{{ url_for('payment_detail', payment_id=payment.id) }}" 
+                               class="btn btn-sm btn-info" title="عرض التفاصيل">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-secondary">
+                        <th colspan="2" class="text-right">الإجمالي:</th>
+                        <th class="text-success">{{ "%.2f"|format(stats.total_amount) }} د.ل</th>
+                        <th class="text-info">{{ "%.2f"|format(stats.total_allocated) }} د.ل</th>
+                        <th class="text-warning">{{ "%.2f"|format(stats.total_unallocated) }} د.ل</th>
+                        <th colspan="5"></th>
+                    </tr>
+                </tfoot>
+            </table>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h4>لا توجد مدفوعات مسجلة</h4>
+                <p>لإضافة دفعة جديدة، اذهب إلى صفحة المورد واختر "إضافة دفعة"</p>
+                <a href="{{ url_for('suppliers_list') }}" class="btn btn-primary">
+                    <i class="fas fa-truck"></i> قائمة الموردين
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

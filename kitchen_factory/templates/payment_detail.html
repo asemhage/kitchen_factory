@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل الدفعة #{{ payment.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2><i class="fas fa-receipt"></i> تفاصيل الدفعة #{{ payment.id }}</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">الرئيسية</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('payments_list') }}">المدفوعات</a></li>
+                    <li class="breadcrumb-item active">الدفعة #{{ payment.id }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- معلومات الدفعة -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-info-circle"></i> معلومات الدفعة</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">المورد:</th>
+                            <td>
+                                <a href="{{ url_for('supplier_detail', supplier_id=payment.supplier.id) }}">
+                                    {{ payment.supplier.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>المبلغ:</th>
+                            <td class="text-success"><strong>{{ "%.2f"|format(payment.amount) }} دينار ليبي</strong></td>
+                        </tr>
+                        <tr>
+                            <th>تاريخ الدفع:</th>
+                            <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        </tr>
+                        <tr>
+                            <th>طريقة الدفع:</th>
+                            <td>
+                                {% if payment.payment_method == 'نقد' %}
+                                <span class="badge badge-success">نقد</span>
+                                {% elif payment.payment_method == 'بنك' %}
+                                <span class="badge badge-primary">تحويل بنكي</span>
+                                {% elif payment.payment_method == 'شيك' %}
+                                <span class="badge badge-warning">شيك</span>
+                                {% else %}
+                                <span class="badge badge-secondary">{{ payment.payment_method }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>رقم المرجع:</th>
+                            <td>{{ payment.reference_number or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>نوع الدفع:</th>
+                            <td>
+                                {% if payment.payment_type == 'flexible' %}
+                                <span class="badge badge-info">دفع مرن</span>
+                                {% else %}
+                                <span class="badge badge-secondary">{{ payment.payment_type }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>طريقة التوزيع:</th>
+                            <td>
+                                {% if payment.allocation_method == 'auto_fifo' %}
+                                <span class="badge badge-primary">توزيع تلقائي (FIFO)</span>
+                                {% elif payment.allocation_method == 'auto_priority' %}
+                                <span class="badge badge-info">توزيع حسب الأولوية</span>
+                                {% else %}
+                                <span class="badge badge-secondary">يدوي</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>أضيفت بواسطة:</th>
+                            <td>{{ payment.created_by }}</td>
+                        </tr>
+                        <tr>
+                            <th>تاريخ الإضافة:</th>
+                            <td>{{ payment.created_at.strftime('%Y-%m-%d %H:%M') if payment.created_at else '-' }}</td>
+                        </tr>
+                    </table>
+                    
+                    {% if payment.notes %}
+                    <div class="alert alert-secondary mt-3">
+                        <strong>ملاحظات:</strong><br>
+                        {{ payment.notes }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ملخص التوزيع -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-chart-pie"></i> ملخص التوزيع</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">المبلغ الكلي:</th>
+                            <td class="text-right">
+                                <strong>{{ "%.2f"|format(stats.amount) }}</strong> د.ل
+                            </td>
+                        </tr>
+                        <tr class="table-success">
+                            <th>الموزع:</th>
+                            <td class="text-right">
+                                <strong class="text-success">{{ "%.2f"|format(stats.allocated) }}</strong> د.ل
+                            </td>
+                        </tr>
+                        <tr class="table-warning">
+                            <th>غير الموزع:</th>
+                            <td class="text-right">
+                                <strong class="text-warning">{{ "%.2f"|format(stats.unallocated) }}</strong> د.ل
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>عدد الفواتير:</th>
+                            <td class="text-right">
+                                <strong>{{ stats.allocations_count }}</strong> فاتورة
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- شريط التقدم -->
+                    <div class="progress mt-3" style="height: 25px;">
+                        {% set allocation_percent = (stats.allocated / stats.amount * 100) if stats.amount > 0 else 0 %}
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ allocation_percent }}%">
+                            {{ "%.1f"|format(allocation_percent) }}% موزع
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الإجراءات -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cogs"></i> الإجراءات</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('supplier_detail', supplier_id=payment.supplier.id) }}" 
+                       class="btn btn-info btn-block">
+                        <i class="fas fa-arrow-left"></i> العودة للمورد
+                    </a>
+                    <a href="{{ url_for('payments_list') }}" 
+                       class="btn btn-secondary btn-block">
+                        <i class="fas fa-list"></i> جميع المدفوعات
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول التوزيعات -->
+    {% if payment.allocations %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="fas fa-th-list"></i> تفاصيل التوزيع على الفواتير</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped table-hover">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>رقم الفاتورة</th>
+                                <th>تاريخ الفاتورة</th>
+                                <th>المبلغ الموزع</th>
+                                <th>نسبة التوزيع</th>
+                                <th>طريقة التوزيع</th>
+                                <th>تاريخ التوزيع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for allocation in payment.allocations %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    <a href="{{ url_for('invoice_detail', invoice_id=allocation.invoice.id) }}">
+                                        {{ allocation.invoice.invoice_number }}
+                                    </a>
+                                </td>
+                                <td>{{ allocation.invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+                                <td class="text-success">
+                                    <strong>{{ "%.2f"|format(allocation.allocated_amount) }}</strong> د.ل
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ allocation.allocation_percentage }}%">
+                                            {{ "%.1f"|format(allocation.allocation_percentage) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if allocation.allocation_method == 'auto_fifo' %}
+                                    <span class="badge badge-primary">تلقائي (FIFO)</span>
+                                    {% elif allocation.allocation_method == 'auto_priority' %}
+                                    <span class="badge badge-info">تلقائي (أولوية)</span>
+                                    {% else %}
+                                    <span class="badge badge-secondary">يدوي</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ allocation.allocation_date.strftime('%Y-%m-%d %H:%M') if allocation.allocation_date else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-success">
+                                <th colspan="3" class="text-right">الإجمالي:</th>
+                                <th class="text-success">{{ "%.2f"|format(stats.allocated) }} د.ل</th>
+                                <th colspan="3"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>لم يتم توزيع هذه الدفعة بعد</strong>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
