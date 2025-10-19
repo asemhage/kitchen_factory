@@ -7240,6 +7240,122 @@ if __name__ == '__main__':
         
         return render_template('invoice_detail.html', invoice=invoice, stats=stats)
     
+    @app.route('/invoice/<int:invoice_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_invoice(invoice_id):
+        """تعديل فاتورة مورد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن']:
+            flash('ليس لديك صلاحية لتعديل الفواتير', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(SupplierInvoice, invoice_id)
+        
+        # التحقق من إمكانية التعديل
+        if not invoice.is_active:
+            flash('لا يمكن تعديل فاتورة ملغاة', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        if invoice.paid_amount > 0:
+            flash('لا يمكن تعديل فاتورة تم دفع جزء منها أو كلها', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        if request.method == 'POST':
+            try:
+                # حفظ البيانات القديمة للتدقيق
+                old_data = {
+                    'supplier_id': invoice.supplier_id,
+                    'invoice_number': invoice.invoice_number,
+                    'invoice_date': invoice.invoice_date,
+                    'due_date': invoice.due_date,
+                    'total_amount': invoice.total_amount,
+                    'final_amount': invoice.final_amount,
+                    'debt_amount': invoice.debt_amount
+                }
+                
+                # تحديث البيانات الأساسية
+                supplier_id = request.form.get('supplier_id')
+                invoice_number = request.form.get('invoice_number')
+                invoice_date = request.form.get('invoice_date')
+                due_date = request.form.get('due_date')
+                discount_amount = float(request.form.get('discount_amount', 0))
+                tax_amount = float(request.form.get('tax_amount', 0))
+                notes = request.form.get('notes', '')
+                
+                # التحقق من تكرار رقم الفاتورة
+                if invoice_number != invoice.invoice_number:
+                    existing = SupplierInvoice.query.filter_by(
+                        invoice_number=invoice_number,
+                        is_active=True
+                    ).filter(SupplierInvoice.id != invoice.id).first()
+                    
+                    if existing:
+                        flash(f'رقم الفاتورة "{invoice_number}" مستخدم بالفعل', 'danger')
+                        suppliers = Supplier.query.filter_by(is_active=True).all()
+                        return render_template('edit_invoice.html', invoice=invoice, suppliers=suppliers)
+                
+                # تحديث بيانات الفاتورة
+                invoice.supplier_id = int(supplier_id)
+                invoice.invoice_number = invoice_number
+                invoice.invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else invoice.invoice_date
+                invoice.due_date = datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None
+                invoice.discount_amount = discount_amount
+                invoice.tax_amount = tax_amount
+                invoice.notes = notes
+                
+                # إعادة حساب المبالغ (يتم من خلال حفظ items إذا تم تعديلها)
+                invoice.final_amount = invoice.total_amount - discount_amount + tax_amount
+                invoice.debt_amount = invoice.final_amount
+                
+                # تحديث دين المورد إذا تغير المورد
+                if old_data['supplier_id'] != invoice.supplier_id:
+                    # إزالة من المورد القديم
+                    old_supplier = Supplier.query.get(old_data['supplier_id'])
+                    if old_supplier and old_supplier.debt:
+                        old_supplier.debt.total_debt -= old_data['debt_amount']
+                        old_supplier.debt.remaining_debt = old_supplier.debt.total_debt - old_supplier.debt.paid_amount
+                    
+                    # إضافة للمورد الجديد
+                    new_supplier = Supplier.query.get(invoice.supplier_id)
+                    if new_supplier:
+                        if not new_supplier.debt:
+                            new_debt = SupplierDebt(
+                                supplier_id=new_supplier.id,
+                                total_debt=invoice.debt_amount,
+                                paid_amount=0,
+                                remaining_debt=invoice.debt_amount
+                            )
+                            db.session.add(new_debt)
+                        else:
+                            new_supplier.debt.total_debt += invoice.debt_amount
+                            new_supplier.debt.remaining_debt = new_supplier.debt.total_debt - new_supplier.debt.paid_amount
+                
+                # تسجيل في سجل التدقيق
+                audit_log = AuditLog(
+                    table_name='supplier_invoices',
+                    record_id=invoice.id,
+                    action='edit',
+                    field_name='multiple_fields',
+                    old_value=str(old_data),
+                    new_value=f'تعديل فاتورة {invoice_number}',
+                    reason='تعديل بيانات فاتورة مورد',
+                    showroom_id=invoice.showroom_id,
+                    user_name=current_user.username
+                )
+                db.session.add(audit_log)
+                
+                db.session.commit()
+                
+                flash(f'تم تعديل الفاتورة {invoice.invoice_number} بنجاح', 'success')
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تعديل الفاتورة: {str(e)}', 'danger')
+        
+        # GET request
+        suppliers = Supplier.query.filter_by(is_active=True).all()
+        return render_template('edit_invoice.html', invoice=invoice, suppliers=suppliers)
+    
     @app.route('/invoice/<int:invoice_id>/cancel', methods=['POST'])
     @login_required
     def cancel_invoice(invoice_id):
