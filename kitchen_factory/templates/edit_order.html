@@ -46,7 +46,12 @@
                 <input type="hidden" id="deadline" name="deadline" value="{{ order.deadline.strftime('%Y-%m-%d') if order.deadline else '' }}">
                 <div class="col-md-4">
                     <label for="meters" class="form-label">عدد الأمتار</label>
-                    <input type="number" class="form-control" id="meters" name="meters" min="1" value="{{ order.meters }}" required>
+                    {% if current_user.role == 'موظف استقبال' %}
+                        <input type="number" class="form-control" id="meters" name="meters" min="1" value="{{ order.meters }}" readonly>
+                        <div class="form-text text-muted">موظف الاستقبال لا يمكنه تعديل عدد الأمتار</div>
+                    {% else %}
+                        <input type="number" class="form-control" id="meters" name="meters" min="1" value="{{ order.meters }}" required>
+                    {% endif %}
                 </div>
             </div>
 

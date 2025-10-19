@@ -4108,7 +4108,12 @@ def edit_order(order_id):
     if request.method == 'POST':
         order.delivery_date = datetime.strptime(request.form.get('delivery_date'), '%Y-%m-%d').date() if request.form.get('delivery_date') else None
         order.deadline = datetime.strptime(request.form.get('deadline'), '%Y-%m-%d').date() if request.form.get('deadline') else None
-        order.meters = int(request.form.get('meters'))
+        
+        # موظف الاستقبال لا يمكنه تعديل عدد الأمتار
+        if current_user.role != 'موظف استقبال':
+            order.meters = int(request.form.get('meters'))
+        # إذا كان موظف استقبال، نحتفظ بالقيمة الحالية
+        
         order.status = request.form.get('status')
 
         # تحديث بيانات العميل
