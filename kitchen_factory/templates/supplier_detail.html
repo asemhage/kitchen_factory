@@ -294,9 +294,9 @@
                                     <td>{{ payment.payment_date.strftime('%Y-%m-%d') }}</td>
                                     <td>
                                         {% if payment.allocation_method == 'auto_fifo' %}
-                                        <span class="badge badge-primary">FIFO</span>
+                                        <span class="badge badge-primary" style="color: black !important;">FIFO</span>
                                         {% else %}
-                                        <span class="badge badge-secondary">{{ payment.allocation_method }}</span>
+                                        <span class="badge badge-secondary" style="color: black !important;">{{ payment.allocation_method }}</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ payment.allocations|length }}</td>

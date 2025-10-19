@@ -101,11 +101,11 @@
                         <td>{{ payment.payment_date.strftime('%Y-%m-%d') }}</td>
                         <td>
                             {% if payment.allocation_method == 'auto_fifo' %}
-                            <span class="badge badge-primary">FIFO</span>
+                            <span class="badge badge-primary" style="color: black !important;">FIFO</span>
                             {% elif payment.allocation_method == 'auto_priority' %}
-                            <span class="badge badge-info">أولوية</span>
+                            <span class="badge badge-info" style="color: black !important;">أولوية</span>
                             {% else %}
-                            <span class="badge badge-secondary">يدوي</span>
+                            <span class="badge badge-secondary" style="color: black !important;">يدوي</span>
                             {% endif %}
                         </td>
                         <td>{{ payment.allocations|length }}</td>
