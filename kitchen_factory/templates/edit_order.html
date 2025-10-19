@@ -42,10 +42,8 @@
                     <label for="delivery_date" class="form-label">تاريخ التسليم</label>
                     <input type="date" class="form-control" id="delivery_date" name="delivery_date" value="{{ order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else '' }}">
                 </div>
-                <div class="col-md-4">
-                    <label for="deadline" class="form-label">الموعد النهائي</label>
-                    <input type="date" class="form-control" id="deadline" name="deadline" value="{{ order.deadline.strftime('%Y-%m-%d') if order.deadline else '' }}">
-                </div>
+                <!-- تم إخفاء الموعد النهائي - سيتم تعيينه تلقائياً لتاريخ التسليم -->
+                <input type="hidden" id="deadline" name="deadline" value="{{ order.deadline.strftime('%Y-%m-%d') if order.deadline else '' }}">
                 <div class="col-md-4">
                     <label for="meters" class="form-label">عدد الأمتار</label>
                     <input type="number" class="form-control" id="meters" name="meters" min="1" value="{{ order.meters }}" required>
@@ -71,4 +69,11 @@
         </form>
     </div>
 </div>
+
+<script>
+// تعيين الموعد النهائي تلقائياً لتاريخ التسليم
+document.getElementById('delivery_date').addEventListener('change', function() {
+    document.getElementById('deadline').value = this.value;
+});
+</script>
 {% endblock %}

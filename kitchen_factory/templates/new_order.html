@@ -55,10 +55,8 @@
                     <label for="delivery_date" class="form-label">تاريخ التسليم</label>
                     <input type="date" class="form-control" id="delivery_date" name="delivery_date">
                 </div>
-                <div class="col-md-6">
-                    <label for="deadline" class="form-label">الموعد النهائي</label>
-                    <input type="date" class="form-control" id="deadline" name="deadline">
-                </div>
+                <!-- تم إخفاء الموعد النهائي - سيتم تعيينه تلقائياً لتاريخ التسليم -->
+                <input type="hidden" id="deadline" name="deadline">
             </div>
             
             <div class="alert alert-info mb-3">
@@ -148,6 +146,11 @@
                 scrollTop: $("#customer_name").offset().top - 100
             }, 500);
         });
+    });
+    
+    // تعيين الموعد النهائي تلقائياً لتاريخ التسليم
+    document.getElementById('delivery_date').addEventListener('change', function() {
+        document.getElementById('deadline').value = this.value;
     });
 </script>
 {% endblock %}
