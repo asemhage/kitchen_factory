@@ -454,70 +454,54 @@ class Material(db.Model):
     # العلاقات
     warehouse = db.relationship('Warehouse', back_populates='materials')
 
-# ==================== نماذج الموردين والفواتير - النظام الجديد ====================
+# ==================== نماذج الموردين والفواتير ====================
 
 class Supplier(db.Model):
-    """نموذج المورد الجديد - مع دعم الدفع المرن - مضاف 2025-10-19"""
+    """نموذج المورد - لإدارة الموردين وتتبع معاملاتهم"""
     __tablename__ = 'suppliers'
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    code = db.Column(db.String(20), unique=True)
+    code = db.Column(db.String(20), unique=True)  # كود المورد الفريد
     phone = db.Column(db.String(20))
     email = db.Column(db.String(100))
     address = db.Column(db.String(200))
-    tax_id = db.Column(db.String(50))
-    contact_person = db.Column(db.String(100))
-    payment_terms = db.Column(db.String(100))
+    tax_id = db.Column(db.String(50))  # الرقم الضريبي
+    contact_person = db.Column(db.String(100))  # الشخص المسؤول
+    payment_terms = db.Column(db.String(100))  # شروط الدفع (نقد، آجل، إلخ)
     notes = db.Column(db.Text)
     
     # ربط بالصالة
     showroom_id = db.Column(db.Integer, db.ForeignKey('showrooms.id'), nullable=False)
     
-    # الحالة
+    # Soft Delete
     is_active = db.Column(db.Boolean, default=True)
+    deleted_at = db.Column(db.DateTime)
+    deleted_by = db.Column(db.String(100))
+    
+    # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
     created_by = db.Column(db.String(100))
     
     # العلاقات
     showroom = db.relationship('Showroom')
-    invoices = db.relationship('SupplierInvoice', back_populates='supplier', lazy=True)
+    invoices = db.relationship('PurchaseInvoice', back_populates='supplier', lazy=True)
     payments = db.relationship('SupplierPayment', back_populates='supplier', lazy=True)
-    debt = db.relationship('SupplierDebt', back_populates='supplier', uselist=False)
     
-    # خصائص محسوبة
+    # Computed property
     @property
     def total_debt(self):
-        """إجمالي الديون المتبقية"""
-        return self.debt.remaining_debt if self.debt else 0
-    
-    @property
-    def total_paid(self):
-        """إجمالي المدفوعات"""
-        return self.debt.paid_amount if self.debt else 0
+        """إجمالي الديون المتبقية لهذا المورد"""
+        total = 0
+        for invoice in self.invoices:
+            if invoice.is_active and invoice.status != 'paid':
+                total += invoice.remaining_amount
+        return total
 
-class SupplierDebt(db.Model):
-    """جدول ديون الموردين - تتبع إجمالي الديون والمدفوعات - مضاف 2025-10-19"""
-    __tablename__ = 'supplier_debts'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=False, unique=True)
-    total_debt = db.Column(db.Float, default=0)  # إجمالي الدين
-    paid_amount = db.Column(db.Float, default=0)  # المبلغ المدفوع
-    remaining_debt = db.Column(db.Float, default=0)  # الدين المتبقي
-    
-    # تلقائياً: remaining_debt = total_debt - paid_amount
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
-    
-    # العلاقات
-    supplier = db.relationship('Supplier', back_populates='debt')
-    payments = db.relationship('SupplierPayment', back_populates='debt', lazy=True)
-
-class SupplierInvoice(db.Model):
-    """نموذج فاتورة المورد الجديد - مع دعم الدفع المرن - مضاف 2025-10-19"""
-    __tablename__ = 'supplier_invoices'
+class PurchaseInvoice(db.Model):
+    """نموذج فاتورة الشراء - لتسجيل مشتريات المواد من الموردين"""
+    __tablename__ = 'purchase_invoices'
     
     id = db.Column(db.Integer, primary_key=True)
     invoice_number = db.Column(db.String(50), unique=True, nullable=False)
@@ -533,15 +517,19 @@ class SupplierInvoice(db.Model):
     tax_amount = db.Column(db.Float, default=0)  # قيمة الضريبة
     final_amount = db.Column(db.Float, nullable=False, default=0)  # المبلغ النهائي
     
-    # حالة الدين
-    debt_status = db.Column(db.String(20), default='unpaid')  # unpaid, partial, paid
-    debt_amount = db.Column(db.Float, default=0)  # مبلغ الدين
-    paid_amount = db.Column(db.Float, default=0)  # المبلغ المدفوع
+    # الحالة
+    status = db.Column(db.String(20), default='open')
+    # القيم الممكنة: open (مفتوحة), partial (مدفوعة جزئياً), paid (مدفوعة), overdue (متأخرة), cancelled (ملغاة)
     
     notes = db.Column(db.Text)
     
-    # الحالة
+    # Soft Delete
     is_active = db.Column(db.Boolean, default=True)
+    cancelled_at = db.Column(db.DateTime)
+    cancelled_by = db.Column(db.String(100))
+    cancellation_reason = db.Column(db.Text)
+    
+    # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     created_by = db.Column(db.String(100))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
@@ -549,83 +537,96 @@ class SupplierInvoice(db.Model):
     # العلاقات
     supplier = db.relationship('Supplier', back_populates='invoices')
     showroom = db.relationship('Showroom')
-    payment_allocations = db.relationship('PaymentAllocation', back_populates='invoice', lazy=True)
+    items = db.relationship('PurchaseInvoiceItem', back_populates='invoice', cascade='all, delete-orphan', lazy=True)
+    payments = db.relationship('SupplierPayment', back_populates='invoice', lazy=True)
     
-    # خصائص محسوبة
+    # Computed properties
+    @property
+    def paid_amount(self):
+        """المبلغ المدفوع - محسوب من الدفعات"""
+        return sum(p.amount for p in self.payments if p.is_active)
+    
     @property
     def remaining_amount(self):
         """المبلغ المتبقي"""
-        return self.debt_amount - self.paid_amount
+        return self.final_amount - self.paid_amount
     
+    # Indexes
+    __table_args__ = (
+        db.Index('idx_supplier_showroom', 'supplier_id', 'showroom_id'),
+        db.Index('idx_invoice_date', 'invoice_date'),
+        db.Index('idx_invoice_status', 'status'),
+    )
+
+class PurchaseInvoiceItem(db.Model):
+    """نموذج عنصر فاتورة الشراء - تفاصيل المواد المشتراة"""
+    __tablename__ = 'purchase_invoice_items'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('purchase_invoices.id'), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey('material.id'), nullable=False)
+    
+    quantity = db.Column(db.Float, nullable=False)
+    purchase_price = db.Column(db.Float, nullable=False)  # سعر الشراء للوحدة
+    
+    discount_percent = db.Column(db.Float, default=0)  # نسبة الخصم
+    discount_amount = db.Column(db.Float, default=0)  # قيمة الخصم
+    
+    notes = db.Column(db.String(200))
+    
+    # العلاقات
+    invoice = db.relationship('PurchaseInvoice', back_populates='items')
+    material = db.relationship('Material')
+    
+    # Computed property
     @property
-    def is_fully_paid(self):
-        """هل الفاتورة مدفوعة بالكامل؟"""
-        return self.paid_amount >= self.debt_amount
+    def line_total(self):
+        """إجمالي السطر (الكمية × السعر - الخصم)"""
+        subtotal = self.quantity * self.purchase_price
+        return subtotal - self.discount_amount
+    
+    # Validators
+    @validates('quantity', 'purchase_price')
+    def validate_positive(self, key, value):
+        if value < 0:
+            raise ValueError(f"{key} يجب أن يكون رقماً موجباً")
+        return value
 
 class SupplierPayment(db.Model):
-    """نموذج مدفوعات الموردين الجديد - مع دعم الدفع المرن - مضاف 2025-10-19"""
+    """نموذج دفعة المورد - لتسجيل المدفوعات للموردين"""
     __tablename__ = 'supplier_payments'
     
     id = db.Column(db.Integer, primary_key=True)
     supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=False)
-    debt_id = db.Column(db.Integer, db.ForeignKey('supplier_debts.id'), nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('purchase_invoices.id'), nullable=False)
     
-    amount = db.Column(db.Float, nullable=False)  # مبلغ الدفع
-    payment_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    payment_method = db.Column(db.String(50), default='نقد')  # نقد، شيك، تحويل
-    reference_number = db.Column(db.String(100))  # رقم المرجع
+    amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50), default='نقد')
+    # القيم: نقد، بنك، شيك، تحويل، آجل
+    
+    payment_date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    reference_number = db.Column(db.String(50))  # رقم المرجع/الشيك/التحويل
+    
     notes = db.Column(db.Text)
+    paid_by = db.Column(db.String(100), nullable=False)  # الموظف الذي سجل الدفع
     
-    # نوع الدفع
-    payment_type = db.Column(db.String(20), default='flexible')  # flexible, specific_invoice
-    allocation_method = db.Column(db.String(20), default='auto_fifo')  # auto_fifo, auto_priority, manual
-    
-    # معلومات الإضافة
-    created_by = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Soft Delete
     is_active = db.Column(db.Boolean, default=True)
+    cancelled_at = db.Column(db.DateTime)
+    cancelled_by = db.Column(db.String(100))
+    
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     # العلاقات
     supplier = db.relationship('Supplier', back_populates='payments')
-    debt = db.relationship('SupplierDebt', back_populates='payments')
-    allocations = db.relationship('PaymentAllocation', back_populates='payment', lazy=True)
+    invoice = db.relationship('PurchaseInvoice', back_populates='payments')
     
-    # خصائص محسوبة
-    @property
-    def total_allocated(self):
-        """إجمالي المبلغ الموزع على الفواتير"""
-        return sum(a.allocated_amount for a in self.allocations)
-    
-    @property
-    def unallocated_amount(self):
-        """المبلغ غير الموزع"""
-        return self.amount - self.total_allocated
-
-class PaymentAllocation(db.Model):
-    """جدول توزيع المدفوعات على الفواتير - نظام مرن - مضاف 2025-10-19"""
-    __tablename__ = 'payment_allocations'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    payment_id = db.Column(db.Integer, db.ForeignKey('supplier_payments.id'), nullable=False)
-    invoice_id = db.Column(db.Integer, db.ForeignKey('supplier_invoices.id'), nullable=False)
-    allocated_amount = db.Column(db.Float, nullable=False)  # المبلغ المخصص لهذه الفاتورة
-    
-    # معلومات التوزيع
-    allocation_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    allocation_method = db.Column(db.String(20))  # auto_fifo, auto_priority, manual
-    notes = db.Column(db.Text)
-    
-    # العلاقات
-    payment = db.relationship('SupplierPayment', back_populates='allocations')
-    invoice = db.relationship('SupplierInvoice', back_populates='payment_allocations')
-    
-    # خصائص محسوبة
-    @property
-    def allocation_percentage(self):
-        """نسبة التوزيع من إجمالي الدفع"""
-        if self.payment and self.payment.amount > 0:
-            return (self.allocated_amount / self.payment.amount) * 100
-        return 0
+    # Validators
+    @validates('amount')
+    def validate_amount(self, key, value):
+        if value <= 0:
+            raise ValueError("مبلغ الدفع يجب أن يكون رقماً موجباً")
+        return value
 
 # ==================== نماذج الفنيين والمستحقات ====================
 
@@ -3092,433 +3093,141 @@ def format_arabic_text(text):
         return text
 
 # دالة لإنشاء إيصال قبض PDF
-# تم تعليق الدالة القديمة واستبدالها بـ generate_receipt_pdf_v2 - 2025-10-19
-# def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون', receipt_number=None):
-#     """إنشاء إيصال قبض PDF مع دعم كامل للغة العربية - الإصدار القديم"""
-#     buffer = io.BytesIO()
-#     
-#     # إنشاء مستند PDF
-#     p = canvas.Canvas(buffer, pagesize=A4)
-#     width, height = A4
-#     
-#     # تسجيل الخط العربي مع fallback محسن
-#     arabic_font = register_arabic_fonts()
-#     
-#     # تحسين اختيار الخط
-#     if arabic_font:
-#         font_name = arabic_font
-#         print(f"✅ استخدام الخط العربي: {font_name}")
-#     else:
-#         # fallback للخطوط المتاحة
-#         available_fonts = ['Helvetica-Bold', 'Helvetica', 'Times-Bold', 'Times-Roman']
-#         font_name = available_fonts[0]  # استخدام أول خط متاح
-#         print(f"⚠️ استخدام الخط الافتراضي: {font_name}")
-#     
-#     # رأس الإيصال
-#     p.setFont(font_name, 16)
-#     
-#     # العنوان (بالإنجليزية)
-#     title_text = "Kitchen Factory"
-#     title_width = p.stringWidth(title_text, font_name, 16)
-#     p.drawString((width - title_width) / 2, height - 2*cm, title_text)
-#     
-#     # العنوان الفرعي (عربي + إنجليزي)
-#     subtitle_ar = format_arabic_text("ايصال قبض")
-#     subtitle_text = f"Receipt / {subtitle_ar}"
-#     subtitle_width = p.stringWidth(subtitle_text, font_name, 14)
-#     p.setFont(font_name, 14)
-#     p.drawString((width - subtitle_width) / 2, height - 2.8*cm, subtitle_text)
-#     
-#     # اسم الصالة
-#     if order.showroom:
-#         showroom_label = format_arabic_text("الصالة")
-#         showroom_text = f"Showroom / {showroom_label}: {order.showroom.name}"
-#         showroom_width = p.stringWidth(showroom_text, font_name, 11)
-#         p.setFont(font_name, 11)
-#         p.drawString((width - showroom_width) / 2, height - 3.5*cm, showroom_text)
-#     
-#     # رقم الإيصال
-#     if receipt_number:
-#         receipt_label = format_arabic_text("رقم الإيصال")
-#         p.setFont(font_name, 10)
-#         p.drawString(2*cm, height - 4*cm, f"Receipt No / {receipt_label}: {receipt_number}")
-#     
-#     # معلومات الإيصال
-#     y_position = height - 5.3*cm
-#     p.setFont(font_name, 12)
-#     
-#     # رقم الطلب
-#     order_label = format_arabic_text("رقم الطلب")
-#     p.drawString(2*cm, y_position, f"Order ID / {order_label}: {order.id}")
-#     y_position -= 0.8*cm
-#     
-#     # اسم العميل
-#     customer_label = format_arabic_text("العميل")
-#     p.drawString(2*cm, y_position, f"Customer / {customer_label}: {order.customer.name}")
-#     y_position -= 0.8*cm
-#     
-#     # تاريخ الإيصال
-#     date_label = format_arabic_text("التاريخ")
-#     p.drawString(2*cm, y_position, f"Date / {date_label}: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-#     y_position -= 0.8*cm
-#     
-#     # نوع الدفع (مع دعم أنواع متعددة)
-#     payment_type_label = format_arabic_text("نوع الدفع")
-#     payment_type_formatted = format_arabic_text(payment_type_ar)
-#     
-#     # الترجمة الإنجليزية
-#     payment_type_en = {
-#         'عربون': 'Deposit',
-#         'دفعة': 'Payment',
-#         'باقي المبلغ': 'Final Payment'
-#     }.get(payment_type_ar, 'Payment')
-#     
-#     p.drawString(2*cm, y_position, f"Payment Type / {payment_type_label}: {payment_type_en} / {payment_type_formatted}")
-#     y_position -= 1*cm
-#     
-#     # التفاصيل المالية
-#     financial_label = format_arabic_text("التفاصيل المالية")
-#     p.setFont(font_name, 13)
-#     p.drawString(2*cm, y_position, f"Financial Details / {financial_label}:")
-#     y_position -= 0.8*cm
-#     
-#     p.setFont(font_name, 11)
-#     currency_label = format_arabic_text("دينار ليبي")
-#     
-#     # قيمة الطلبية
-#     order_value_label = format_arabic_text("قيمة الطلبية")
-#     p.drawString(2.5*cm, y_position, f"Order Value / {order_value_label}: {order.total_value:.2f} LYD / {currency_label}")
-#     y_position -= 0.6*cm
-#     
-#     # إجمالي المدفوعات
-#     total_paid_label = format_arabic_text("إجمالي المدفوعات")
-#     p.drawString(2.5*cm, y_position, f"Total Paid / {total_paid_label}: {order.total_paid:.2f} LYD / {currency_label}")
-#     y_position -= 0.6*cm
-#     
-#     # المتبقي
-#     remaining_label = format_arabic_text("المتبقي")
-#     p.drawString(2.5*cm, y_position, f"Remaining / {remaining_label}: {order.remaining_amount:.2f} LYD / {currency_label}")
-#     y_position -= 0.8*cm
-#     
-#     # هذه الدفعة
-#     if payment_amount:
-#         p.setFont(font_name, 13)
-#         this_payment_label = format_arabic_text("هذه الدفعة")
-#         p.drawString(2*cm, y_position, f"This Payment / {this_payment_label}: {payment_amount:.2f} LYD / {currency_label}")
-#         y_position -= 1*cm
-#     
-#     # حالة الدفع
-#     p.setFont(font_name, 12)
-#     payment_status_label = format_arabic_text("حالة الدفع")
-#     status_ar = format_arabic_text(order.payment_status)
-#     p.drawString(2*cm, y_position, f"Payment Status / {payment_status_label}: {status_ar}")
-#     y_position -= 0.8*cm
-#     
-#     # المستلم
-#     received_by_label = format_arabic_text("المستلم")
-#     p.drawString(2*cm, y_position, f"Received by / {received_by_label}: {current_user.username}")
-#     y_position -= 1.5*cm
-#     
-#     # خط فاصل
-#     p.line(2*cm, y_position, width - 2*cm, y_position)
-#     y_position -= 1*cm
-#     
-#     # ملاحظة
-#     note_label = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر")
-#     p.setFont(font_name, 9)
-#     p.drawString(2*cm, y_position, "This is a computer generated receipt.")
-#     p.drawString(2*cm, y_position - 0.5*cm, note_label)
-#     
-#     # إنهاء المستند
-#     p.showPage()
-#     p.save()
-#     
-#     buffer.seek(0)
-#     return buffer
-
-def number_to_arabic_words(number):
-    """تحويل الأرقام إلى كلمات عربية - مضاف 2025-10-19"""
-    ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة']
-    tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون']
-    hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة']
-    thousands = ['', 'ألف', 'ألفان', 'ثلاثة آلاف', 'أربعة آلاف', 'خمسة آلاف', 'ستة آلاف', 'سبعة آلاف', 'ثمانية آلاف', 'تسعة آلاف']
-    ten_thousands = ['', 'عشرة آلاف', 'عشرون ألف', 'ثلاثون ألف', 'أربعون ألف', 'خمسون ألف', 'ستون ألف', 'سبعون ألف', 'ثمانون ألف', 'تسعون ألف']
-    
-    if number == 0:
-        return 'صفر'
-    
-    if number < 10:
-        return ones[int(number)]
-    
-    if number < 100:
-        ten = int(number / 10)
-        one = int(number % 10)
-        if one == 0:
-            return tens[ten]
-        return tens[ten] + ' و' + ones[one]
-    
-    if number < 1000:
-        hundred = int(number / 100)
-        remainder = number % 100
-        if remainder == 0:
-            return hundreds[hundred]
-        return hundreds[hundred] + ' و' + number_to_arabic_words(remainder)
-    
-    if number < 10000:
-        thousand = int(number / 1000)
-        remainder = number % 1000
-        if remainder == 0:
-            return thousands[thousand]
-        return thousands[thousand] + ' و' + number_to_arabic_words(remainder)
-    
-    if number < 100000:
-        ten_thousand = int(number / 10000)
-        remainder = number % 10000
-        if remainder == 0:
-            return ten_thousands[ten_thousand]
-        return ten_thousands[ten_thousand] + ' و' + number_to_arabic_words(remainder)
-    
-    # للأرقام الأكبر، استخدم التنسيق العددي
-    return str(int(number))
-
-def generate_receipt_pdf_v2(order, payment, customer_name=None):
-    """إنشاء إيصال قبض PDF بالتصميم الجديد - مضاف 2025-10-19"""
+def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون', receipt_number=None):
+    """إنشاء إيصال قبض PDF مع دعم كامل للغة العربية"""
     buffer = io.BytesIO()
     
     # إنشاء مستند PDF
     p = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     
-    # تسجيل الخط العربي
+    # تسجيل الخط العربي مع fallback محسن
     arabic_font = register_arabic_fonts()
+    
+    # تحسين اختيار الخط
     if arabic_font:
         font_name = arabic_font
+        print(f"✅ استخدام الخط العربي: {font_name}")
     else:
-        font_name = 'Helvetica'
+        # fallback للخطوط المتاحة
+        available_fonts = ['Helvetica-Bold', 'Helvetica', 'Times-Bold', 'Times-Roman']
+        font_name = available_fonts[0]  # استخدام أول خط متاح
+        print(f"⚠️ استخدام الخط الافتراضي: {font_name}")
     
-    # ========== 1. معلومات الصالة ==========
-    y_position = height - 2*cm
+    # رأس الإيصال
+    p.setFont(font_name, 16)
     
-    # صندوق معلومات الصالة
-    p.setFillColorRGB(0.95, 0.95, 0.95)
-    p.rect(width/2 - 4*cm, y_position - 2.5*cm, 8*cm, 2.5*cm, fill=1, stroke=1)
-    p.setFillColorRGB(0, 0, 0)
+    # العنوان (بالإنجليزية)
+    title_text = "Kitchen Factory"
+    title_width = p.stringWidth(title_text, font_name, 16)
+    p.drawString((width - title_width) / 2, height - 2*cm, title_text)
+    
+    # العنوان الفرعي (عربي + إنجليزي)
+    subtitle_ar = format_arabic_text("ايصال قبض")
+    subtitle_text = f"Receipt / {subtitle_ar}"
+    subtitle_width = p.stringWidth(subtitle_text, font_name, 14)
+    p.setFont(font_name, 14)
+    p.drawString((width - subtitle_width) / 2, height - 2.8*cm, subtitle_text)
     
     # اسم الصالة
-    p.setFont(font_name, 16)
-    showroom_name = order.showroom.name if order.showroom else "الصالة الرئيسية"
-    showroom_text = format_arabic_text(showroom_name)
-    p.drawCentredString(width/2, y_position - 0.8*cm, showroom_text)
-    
-    # رقم الهاتف والعنوان
-    p.setFont(font_name, 10)
-    if order.showroom and order.showroom.phone:
-        phone_text = format_arabic_text(f"هاتف: {order.showroom.phone}")
-        p.drawCentredString(width/2, y_position - 1.4*cm, phone_text)
-    
-    if order.showroom and order.showroom.address:
-        address_text = format_arabic_text(f"العنوان: {order.showroom.address}")
-        p.drawCentredString(width/2, y_position - 1.8*cm, address_text)
-    
-    y_position -= 3*cm
-    
-    # ========== 2. عنوان الإيصال ==========
-    p.setFont(font_name, 22)
-    title = format_arabic_text("إيصال قبض")
-    p.drawCentredString(width/2, y_position, title)
-    
-    y_position -= 1.5*cm
-    
-    # ========== 3. الشريط الأزرق ==========
-    # رسم المستطيل الأزرق
-    p.setFillColorRGB(0, 0.47, 1)  # أزرق
-    p.rect(2*cm, y_position - 2*cm, width - 4*cm, 2*cm, fill=1, stroke=0)
-    
-    # النصوص داخل الشريط الأزرق
-    p.setFillColorRGB(1, 1, 1)  # أبيض
-    p.setFont(font_name, 11)
-    
-    # رقم الطلب - تم تحسين المحاذاة 2025-10-19
-    order_label = format_arabic_text("رقم الطلب")
-    order_label_width = p.stringWidth(order_label, font_name, 11)
-    p.drawString(width - 3*cm - order_label_width/2, y_position - 0.7*cm, order_label)
-    p.setFont(font_name, 14)
-    order_number_width = p.stringWidth(str(order.id), font_name, 14)
-    p.drawString(width - 3*cm - order_number_width/2, y_position - 1.3*cm, str(order.id))
-    
-    # التاريخ
-    p.setFont(font_name, 11)
-    date_label = format_arabic_text("التاريخ")
-    p.drawCentredString(width/2, y_position - 0.7*cm, date_label)
-    p.setFont(font_name, 14)
-    date_str = payment.payment_date.strftime('%Y-%m-%d') if hasattr(payment.payment_date, 'strftime') else str(payment.payment_date)
-    p.drawCentredString(width/2, y_position - 1.3*cm, date_str)
-    
-    # تم الاستلام من
-    p.setFont(font_name, 11)
-    customer_label = format_arabic_text("تم الاستلام من")
-    p.drawString(3*cm, y_position - 0.7*cm, customer_label)
-    p.setFont(font_name, 14)
-    customer_display = customer_name or (order.customer.name if order.customer else "")
-    customer_formatted = format_arabic_text(customer_display)
-    p.drawString(3*cm, y_position - 1.3*cm, customer_formatted)
-    
-    p.setFillColorRGB(0, 0, 0)  # العودة للون الأسود
-    y_position -= 3*cm
-    
-    # ========== 4. تفاصيل الدفع ==========
-    # صندوق تفاصيل الدفع
-    p.setFillColorRGB(0.97, 0.97, 0.97)
-    p.rect(2*cm, y_position - 5*cm, width - 4*cm, 5*cm, fill=1, stroke=1)
-    p.setFillColorRGB(0, 0, 0)
-    
-    p.setFont(font_name, 12)
-    detail_y = y_position - 1*cm
-    
-    # مبلغ وقدره
-    amount_label = format_arabic_text("مبلغ وقدره:")
-    p.drawString(width - 5*cm, detail_y, amount_label)
-    
-    p.setFont(font_name, 16)
-    p.setFillColorRGB(0, 0.47, 1)
-    amount_text = f"{payment.amount:.2f} " + format_arabic_text("دينار ليبي")
-    p.drawString(3*cm, detail_y, amount_text)
-    p.setFillColorRGB(0, 0, 0)
-    
-    detail_y -= 1*cm
-    
-    # المبلغ بالحروف
-    p.setFont(font_name, 12)
-    words_label = format_arabic_text("المبلغ بالحروف:")
-    p.drawString(width - 5*cm, detail_y, words_label)
-    
-    p.setFont(font_name, 11)
-    amount_words = number_to_arabic_words(int(payment.amount))
-    amount_words_formatted = format_arabic_text(amount_words + " دينار ليبي")
-    p.drawString(3*cm, detail_y, amount_words_formatted)
-    
-    detail_y -= 1*cm
-    
-    # الغرض
-    p.setFont(font_name, 12)
-    purpose_label = format_arabic_text("الغرض:")
-    p.drawString(width - 5*cm, detail_y, purpose_label)
-    
-    p.setFont(font_name, 11)
-    purpose_text = format_arabic_text(f"{payment.payment_type} طلب مطبخ رقم {order.id}")
-    p.drawString(3*cm, detail_y, purpose_text)
-    
-    detail_y -= 1*cm
-    
-    # طريقة الدفع
-    p.setFont(font_name, 12)
-    method_label = format_arabic_text("طريقة الدفع:")
-    p.drawString(width - 5*cm, detail_y, method_label)
-    
-    # عرض طريقة الدفع مع تمييز المحدد
-    p.setFont(font_name, 11)
-    methods = ['نقداً', 'شيك', 'تحويل مالي']
-    method_x = 3*cm
-    for method in methods:
-        if payment.payment_method and method in payment.payment_method:
-            # طريقة الدفع المحددة
-            p.setFillColorRGB(0, 0.47, 1)
-            p.setFont(font_name, 12)
-            method_formatted = format_arabic_text(f"✓ {method}")
-            p.drawString(method_x, detail_y, method_formatted)
-            p.setFillColorRGB(0, 0, 0)
-            p.setFont(font_name, 11)
-        else:
-            # طريقة دفع غير محددة
-            p.setFillColorRGB(0.6, 0.6, 0.6)
-            method_formatted = format_arabic_text(method)
-            p.drawString(method_x, detail_y, method_formatted)
-            p.setFillColorRGB(0, 0, 0)
-        method_x += 4*cm
-    
-    y_position -= 6*cm
-    
-    # ========== 5. باقي القيمة ==========
-    # حساب باقي القيمة
-    total_paid = sum(p.amount for p in order.payments)
-    remaining = order.total_value - total_paid
-    
-    # صندوق باقي القيمة
-    p.setStrokeColorRGB(0.2, 0.2, 0.2)
-    p.setLineWidth(2)
-    p.rect(width/2 - 4*cm, y_position - 2.5*cm, 8*cm, 2.5*cm, fill=0, stroke=1)
-    
-    # عنوان
-    p.setFont(font_name, 14)
-    remaining_label = format_arabic_text("باقي القيمة")
-    p.drawCentredString(width/2, y_position - 1*cm, remaining_label)
-    
-    # المبلغ - تم تحسين التخطيط لحل التداخل 2025-10-19
-    p.setFont(font_name, 18)  # تصغير الخط قليلاً
-    p.setFillColorRGB(0, 0.47, 1)
-    
-    # حساب المسافات لتجنب التداخل
-    currency_text = "LYD"
-    amount_text = f"{remaining:.2f}"
-    symbol_text = format_arabic_text("د.")
-    
-    currency_width = p.stringWidth(currency_text, font_name, 18)
-    amount_width = p.stringWidth(amount_text, font_name, 18)
-    symbol_width = p.stringWidth(symbol_text, font_name, 18)
-    
-    # توزيع العناصر مع مسافات مناسبة
-    start_x = width/2 - 2*cm
-    p.drawString(start_x, y_position - 1.9*cm, currency_text)
-    p.drawString(start_x + currency_width + 0.3*cm, y_position - 1.9*cm, amount_text)
-    p.drawString(start_x + currency_width + amount_width + 0.6*cm, y_position - 1.9*cm, symbol_text)
-    
-    p.setFillColorRGB(0, 0, 0)
-    
-    y_position -= 4*cm
-    
-    # ========== 6. التوقيعات ==========
-    # صندوق التوقيعات
-    p.setFillColorRGB(0.97, 0.97, 0.97)
-    p.rect(2*cm, y_position - 3*cm, width - 4*cm, 3*cm, fill=1, stroke=1)
-    p.setFillColorRGB(0, 0, 0)
-    
-    # اسم المستلم - تم تحسين المحاذاة 2025-10-19
-    p.setFont(font_name, 12)
-    recipient_label = format_arabic_text("اسم المستلم")
-    recipient_label_width = p.stringWidth(recipient_label, font_name, 12)
-    p.drawString(width - 5*cm - recipient_label_width/2, y_position - 1*cm, recipient_label)
-    
-    p.setFont(font_name, 11)
-    recipient_name = format_arabic_text(payment.received_by if payment.received_by else current_user.username)
-    recipient_name_width = p.stringWidth(recipient_name, font_name, 11)
-    p.drawString(width - 5*cm - recipient_name_width/2, y_position - 1.8*cm, recipient_name)
-    
-    # خط التوقيع - محاذاة مع النص أعلاه
-    line_start = width - 5*cm - recipient_name_width/2
-    line_end = line_start + max(recipient_name_width, 3*cm)
-    p.line(line_start, y_position - 2*cm, line_end, y_position - 2*cm)
-    
-    # توقيع المستلم
-    p.setFont(font_name, 12)
-    signature_label = format_arabic_text("توقيع المستلم")
-    p.drawString(4*cm, y_position - 1*cm, signature_label)
-    
-    # خط التوقيع
-    p.line(4*cm, y_position - 2*cm, 4*cm + 4*cm, y_position - 2*cm)
-    
-    # ========== 7. رقم الإيصال والملاحظات ==========
-    y_position -= 4*cm
+    if order.showroom:
+        showroom_label = format_arabic_text("الصالة")
+        showroom_text = f"Showroom / {showroom_label}: {order.showroom.name}"
+        showroom_width = p.stringWidth(showroom_text, font_name, 11)
+        p.setFont(font_name, 11)
+        p.drawString((width - showroom_width) / 2, height - 3.5*cm, showroom_text)
     
     # رقم الإيصال
-    if payment.receipt_number:
-        p.setFont(font_name, 9)
-        receipt_label = format_arabic_text("رقم الإيصال:")
-        p.drawString(2*cm, y_position, f"{receipt_label} {payment.receipt_number}")
+    if receipt_number:
+        receipt_label = format_arabic_text("رقم الإيصال")
+        p.setFont(font_name, 10)
+        p.drawString(2*cm, height - 4*cm, f"Receipt No / {receipt_label}: {receipt_number}")
+    
+    # معلومات الإيصال
+    y_position = height - 5.3*cm
+    p.setFont(font_name, 12)
+    
+    # رقم الطلب
+    order_label = format_arabic_text("رقم الطلب")
+    p.drawString(2*cm, y_position, f"Order ID / {order_label}: {order.id}")
+    y_position -= 0.8*cm
+    
+    # اسم العميل
+    customer_label = format_arabic_text("العميل")
+    p.drawString(2*cm, y_position, f"Customer / {customer_label}: {order.customer.name}")
+    y_position -= 0.8*cm
+    
+    # تاريخ الإيصال
+    date_label = format_arabic_text("التاريخ")
+    p.drawString(2*cm, y_position, f"Date / {date_label}: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    y_position -= 0.8*cm
+    
+    # نوع الدفع (مع دعم أنواع متعددة)
+    payment_type_label = format_arabic_text("نوع الدفع")
+    payment_type_formatted = format_arabic_text(payment_type_ar)
+    
+    # الترجمة الإنجليزية
+    payment_type_en = {
+        'عربون': 'Deposit',
+        'دفعة': 'Payment',
+        'باقي المبلغ': 'Final Payment'
+    }.get(payment_type_ar, 'Payment')
+    
+    p.drawString(2*cm, y_position, f"Payment Type / {payment_type_label}: {payment_type_en} / {payment_type_formatted}")
+    y_position -= 1*cm
+    
+    # التفاصيل المالية
+    financial_label = format_arabic_text("التفاصيل المالية")
+    p.setFont(font_name, 13)
+    p.drawString(2*cm, y_position, f"Financial Details / {financial_label}:")
+    y_position -= 0.8*cm
+    
+    p.setFont(font_name, 11)
+    currency_label = format_arabic_text("دينار ليبي")
+    
+    # قيمة الطلبية
+    order_value_label = format_arabic_text("قيمة الطلبية")
+    p.drawString(2.5*cm, y_position, f"Order Value / {order_value_label}: {order.total_value:.2f} LYD / {currency_label}")
+    y_position -= 0.6*cm
+    
+    # إجمالي المدفوعات
+    total_paid_label = format_arabic_text("إجمالي المدفوعات")
+    p.drawString(2.5*cm, y_position, f"Total Paid / {total_paid_label}: {order.total_paid:.2f} LYD / {currency_label}")
+    y_position -= 0.6*cm
+    
+    # المتبقي
+    remaining_label = format_arabic_text("المتبقي")
+    p.drawString(2.5*cm, y_position, f"Remaining / {remaining_label}: {order.remaining_amount:.2f} LYD / {currency_label}")
+    y_position -= 0.8*cm
+    
+    # هذه الدفعة
+    if payment_amount:
+        p.setFont(font_name, 13)
+        this_payment_label = format_arabic_text("هذه الدفعة")
+        p.drawString(2*cm, y_position, f"This Payment / {this_payment_label}: {payment_amount:.2f} LYD / {currency_label}")
+        y_position -= 1*cm
+    
+    # حالة الدفع
+    p.setFont(font_name, 12)
+    payment_status_label = format_arabic_text("حالة الدفع")
+    status_ar = format_arabic_text(order.payment_status)
+    p.drawString(2*cm, y_position, f"Payment Status / {payment_status_label}: {status_ar}")
+    y_position -= 0.8*cm
+    
+    # المستلم
+    received_by_label = format_arabic_text("المستلم")
+    p.drawString(2*cm, y_position, f"Received by / {received_by_label}: {current_user.username}")
+    y_position -= 1.5*cm
+    
+    # خط فاصل
+    p.line(2*cm, y_position, width - 2*cm, y_position)
+    y_position -= 1*cm
     
     # ملاحظة
-    p.setFont(font_name, 8)
-    note = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر ولا يحتاج لتوقيع")
-    p.drawCentredString(width/2, y_position - 0.5*cm, note)
+    note_label = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر")
+    p.setFont(font_name, 9)
+    p.drawString(2*cm, y_position, "This is a computer generated receipt.")
+    p.drawString(2*cm, y_position - 0.5*cm, note_label)
     
     # إنهاء المستند
     p.showPage()
@@ -3605,11 +3314,12 @@ def receive_deposit(order_id):
         
         db.session.commit()
         
-        # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
-        receipt_pdf = generate_receipt_pdf_v2(
+        # إنشاء إيصال PDF
+        receipt_pdf = generate_receipt_pdf(
             order=order,
-            payment=payment,
-            customer_name=order.customer.name if order.customer else None
+            payment_amount=deposit_amount,
+            payment_type_ar='عربون',
+            receipt_number=payment.receipt_number
         )
         
         # حفظ PDF في مجلد uploads مؤقتاً
@@ -3630,6 +3340,16 @@ def receive_deposit(order_id):
         db.session.rollback()
         flash(f'حدث خطأ: {str(e)}', 'danger')
         return redirect(url_for('order_detail', order_id=order_id))
+
+@app.route('/test-receipt-design')
+@login_required
+def test_receipt_design():
+    """اختبار تصميم الإيصال الجديد"""
+    if current_user.role not in ['مدير']:
+        flash('ليس لديك صلاحية لاختبار التصميم', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('test/اختبار_تصميم_الإيصال_الجديد.html')
 
 @app.route('/test-fonts')
 @login_required
@@ -3911,11 +3631,12 @@ def add_payment(order_id):
         
         db.session.commit()
         
-        # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
-        receipt_pdf = generate_receipt_pdf_v2(
+        # إنشاء إيصال PDF
+        receipt_pdf = generate_receipt_pdf(
             order=order,
-            payment=payment,
-            customer_name=order.customer.name if order.customer else None
+            payment_amount=amount,
+            payment_type_ar=payment_type,
+            receipt_number=payment.receipt_number
         )
         
         flash(f'تم تسجيل دفعة بقيمة {amount} دينار ليبي وإصدار الإيصال', 'success')
@@ -3931,44 +3652,6 @@ def add_payment(order_id):
     except Exception as e:
         db.session.rollback()
         flash(f'حدث خطأ في إضافة الدفعة: {str(e)}', 'danger')
-        return redirect(url_for('order_detail', order_id=order_id))
-
-@app.route('/order/<int:order_id>/payment/<int:payment_id>/receipt')
-@login_required
-def payment_receipt_v2(order_id, payment_id):
-    """طباعة إيصال دفعة محددة بالتصميم الجديد - مضاف 2025-10-19"""
-    try:
-        # جلب الطلب والدفعة
-        order = db.get_or_404(Order, order_id)
-        payment = db.get_or_404(Payment, payment_id)
-        
-        # التحقق من أن الدفعة تخص الطلب
-        if payment.order_id != order.id:
-            flash('الدفعة لا تخص هذا الطلب', 'danger')
-            return redirect(url_for('order_detail', order_id=order_id))
-        
-        # التحقق من الصلاحيات
-        if current_user.role not in ['مدير', 'موظف استقبال', 'مسؤول إنتاج', 'مسؤول مخزن', 'مسؤول العمليات']:
-            flash('ليس لديك صلاحية لعرض الإيصالات', 'danger')
-            return redirect(url_for('order_detail', order_id=order_id))
-        
-        # إنشاء PDF بالتصميم الجديد
-        receipt_pdf = generate_receipt_pdf_v2(
-            order=order,
-            payment=payment,
-            customer_name=order.customer.name if order.customer else None
-        )
-        
-        # إرسال الملف
-        return send_file(
-            receipt_pdf,
-            as_attachment=True,
-            download_name=f'receipt_{order.id}_{payment.id}_{datetime.now().strftime("%Y%m%d")}.pdf',
-            mimetype='application/pdf'
-        )
-        
-    except Exception as e:
-        flash(f'حدث خطأ في إنشاء الإيصال: {str(e)}', 'danger')
         return redirect(url_for('order_detail', order_id=order_id))
 
 @app.route('/order/<int:order_id>/costs')
@@ -4860,11 +4543,142 @@ def overdue_tasks_report():
 
 # ==================== تقارير الموردين ====================
 
-# تم حذف تقرير suppliers_debts - سيتم استبداله بالنظام الجديد
+@app.route('/reports/suppliers_debts')
+@login_required
+def suppliers_debts_report():
+    """تقرير ديون الموردين - إجمالي المديونية لكل مورد"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب جميع الموردين النشطين
+    suppliers_query = get_scoped_query(Supplier, current_user)
+    suppliers = suppliers_query.all()
+    
+    # حساب الديون لكل مورد
+    suppliers_data = []
+    total_debts = 0
+    
+    for supplier in suppliers:
+        # جلب الفواتير النشطة غير المدفوعة بالكامل
+        active_invoices = [inv for inv in supplier.invoices 
+                          if inv.is_active and inv.status != 'paid']
+        
+        total_invoices = len(supplier.invoices)
+        unpaid_invoices = len(active_invoices)
+        supplier_debt = supplier.total_debt
+        total_debts += supplier_debt
+        
+        # حساب إجمالي المشتريات
+        total_purchases = sum(inv.final_amount for inv in supplier.invoices if inv.is_active)
+        
+        suppliers_data.append({
+            'supplier': supplier,
+            'total_invoices': total_invoices,
+            'unpaid_invoices': unpaid_invoices,
+            'total_debt': supplier_debt,
+            'total_purchases': total_purchases
+        })
+    
+    # ترتيب حسب المديونية (الأعلى أولاً)
+    suppliers_data.sort(key=lambda x: x['total_debt'], reverse=True)
+    
+    return render_template('reports/suppliers_debts.html', 
+                         suppliers_data=suppliers_data, 
+                         total_debts=total_debts)
 
-# تم حذف تقرير overdue_invoices - سيتم استبداله بالنظام الجديد
+@app.route('/reports/overdue_invoices')
+@login_required
+def overdue_invoices_report():
+    """تقرير الفواتير المتأخرة - فواتير تجاوزت تاريخ الاستحقاق"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب الفواتير المتأخرة
+    today = datetime.now(timezone.utc).date()
+    invoices_query = get_scoped_query(PurchaseInvoice, current_user)
+    
+    overdue_invoices = invoices_query.filter(
+        PurchaseInvoice.due_date.isnot(None),
+        PurchaseInvoice.due_date < today,
+        PurchaseInvoice.status != 'paid',
+        PurchaseInvoice.is_active == True
+    ).order_by(PurchaseInvoice.due_date.asc()).all()
+    
+    # حساب الإحصائيات
+    total_overdue_amount = sum(inv.remaining_amount for inv in overdue_invoices)
+    
+    # تصنيف حسب مدة التأخير
+    invoices_by_delay = {
+        'أقل من أسبوع': [],
+        'أسبوع إلى شهر': [],
+        'أكثر من شهر': []
+    }
+    
+    for invoice in overdue_invoices:
+        days_overdue = (today - invoice.due_date).days
+        if days_overdue < 7:
+            invoices_by_delay['أقل من أسبوع'].append(invoice)
+        elif days_overdue < 30:
+            invoices_by_delay['أسبوع إلى شهر'].append(invoice)
+        else:
+            invoices_by_delay['أكثر من شهر'].append(invoice)
+    
+    return render_template('reports/overdue_invoices.html',
+                         overdue_invoices=overdue_invoices,
+                         invoices_by_delay=invoices_by_delay,
+                         total_overdue_amount=total_overdue_amount,
+                         today=today)
 
-# تم حذف تقرير suppliers_performance - سيتم استبداله بالنظام الجديد
+@app.route('/reports/suppliers_performance')
+@login_required
+def suppliers_performance_report():
+    """تقرير أداء الموردين - إحصائيات الشراء والدفع"""
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # جلب جميع الموردين النشطين
+    suppliers_query = get_scoped_query(Supplier, current_user)
+    suppliers = suppliers_query.all()
+    
+    suppliers_performance = []
+    
+    for supplier in suppliers:
+        # حساب الإحصائيات
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        
+        total_invoices = len(active_invoices)
+        total_purchases = sum(inv.final_amount for inv in active_invoices)
+        total_paid = sum(inv.paid_amount for inv in active_invoices)
+        total_remaining = sum(inv.remaining_amount for inv in active_invoices)
+        
+        # حساب متوسط مبلغ الفاتورة
+        avg_invoice = total_purchases / total_invoices if total_invoices > 0 else 0
+        
+        # حساب نسبة الدفع
+        payment_rate = (total_paid / total_purchases * 100) if total_purchases > 0 else 0
+        
+        # آخر تاريخ شراء
+        last_purchase = max((inv.invoice_date for inv in active_invoices), default=None)
+        
+        suppliers_performance.append({
+            'supplier': supplier,
+            'total_invoices': total_invoices,
+            'total_purchases': total_purchases,
+            'total_paid': total_paid,
+            'total_remaining': total_remaining,
+            'avg_invoice': avg_invoice,
+            'payment_rate': payment_rate,
+            'last_purchase': last_purchase
+        })
+    
+    # ترتيب حسب إجمالي المشتريات (الأعلى أولاً)
+    suppliers_performance.sort(key=lambda x: x['total_purchases'], reverse=True)
+    
+    return render_template('reports/suppliers_performance.html',
+                         suppliers_performance=suppliers_performance)
 
 # ==================== تقارير متقدمة ====================
 
@@ -6564,18 +6378,650 @@ if __name__ == '__main__':
         return redirect(url_for('showroom_detail', showroom_id=showroom.id))
 
     # ==================== مسارات إدارة الموردين ====================
-    # تم حذف جميع مسارات الموردين القديمة - سيتم استبدالها بالنظام الجديد
+    
+    @app.route('/suppliers')
+    @login_required
+    def suppliers_list():
+        """عرض قائمة الموردين - متاح للمديرين ومسؤولي المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى صفحة الموردين', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # الموردون مشتركون لجميع الصالات (لا يوجد عزل)
+        suppliers = Supplier.query.filter_by(is_active=True).order_by(Supplier.created_at.desc()).all()
+        
+        # إحصائيات لكل مورد
+        for supplier in suppliers:
+            supplier.invoices_count = len([inv for inv in supplier.invoices if inv.is_active])
+            supplier.total_invoices_amount = sum(inv.final_amount for inv in supplier.invoices if inv.is_active)
+        
+        return render_template('suppliers.html', suppliers=suppliers)
+    
+    @app.route('/supplier/new', methods=['GET', 'POST'])
+    @login_required
+    def new_supplier():
+        """إضافة مورد جديد - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة مورد جديد', 'danger')
+            return redirect(url_for('suppliers_list'))
+        
+        if request.method == 'POST':
+            name = request.form.get('name')
+            code = request.form.get('code')
+            phone = request.form.get('phone')
+            email = request.form.get('email')
+            address = request.form.get('address')
+            tax_id = request.form.get('tax_id')
+            contact_person = request.form.get('contact_person')
+            payment_terms = request.form.get('payment_terms')
+            notes = request.form.get('notes')
+            
+            # التحقق من البيانات المطلوبة
+            if not name:
+                flash('اسم المورد مطلوب', 'danger')
+                return render_template('new_supplier.html')
+            
+            # التحقق من عدم تكرار الكود
+            if code:
+                existing_supplier = Supplier.query.filter_by(code=code, is_active=True).first()
+                if existing_supplier:
+                    flash(f'كود المورد "{code}" مستخدم بالفعل', 'danger')
+                    return render_template('new_supplier.html')
+            
+            try:
+                # الحصول على معرف الصالة التي أضافت المورد (للتسجيل فقط)
+                showroom_id = get_user_showroom_id()
+                
+                supplier = Supplier(
+                    name=name,
+                    code=code,
+                    phone=phone,
+                    email=email,
+                    address=address,
+                    tax_id=tax_id,
+                    contact_person=contact_person,
+                    payment_terms=payment_terms,
+                    notes=notes,
+                    showroom_id=showroom_id,  # للتسجيل: أي صالة أضافت المورد
+                    created_by=current_user.username
+                )
+                
+                db.session.add(supplier)
+                db.session.commit()
+                
+                flash(f'تم إضافة المورد "{name}" بنجاح', 'success')
+                return redirect(url_for('suppliers_list'))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء إضافة المورد: {str(e)}', 'danger')
+        
+        return render_template('new_supplier.html')
+    
+    @app.route('/supplier/<int:supplier_id>')
+    @login_required
+    def supplier_detail(supplier_id):
+        """عرض تفاصيل مورد"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # الفواتير النشطة
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        
+        # إحصائيات
+        stats = {
+            'total_invoices': len(active_invoices),
+            'total_amount': sum(inv.final_amount for inv in active_invoices),
+            'total_paid': sum(inv.paid_amount for inv in active_invoices),
+            'total_remaining': sum(inv.remaining_amount for inv in active_invoices),
+            'overdue_invoices': len([inv for inv in active_invoices 
+                                    if inv.due_date and inv.due_date < datetime.now(timezone.utc).date() 
+                                    and inv.status != 'paid'])
+        }
+        
+        return render_template('supplier_detail.html', supplier=supplier, stats=stats, active_invoices=active_invoices)
+    
+    @app.route('/supplier/<int:supplier_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_supplier(supplier_id):
+        """تعديل بيانات مورد - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لتعديل المورد', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # التحقق من أن المورد غير محذوف
+        if supplier.deleted_at:
+            flash('هذا المورد محذوف ولا يمكن تعديله', 'danger')
+            return redirect(url_for('suppliers_list'))
+        
+        if request.method == 'POST':
+            name = request.form.get('name')
+            code = request.form.get('code')
+            
+            # التحقق من عدم تكرار الكود
+            if code and code != supplier.code:
+                existing_supplier = Supplier.query.filter_by(code=code, is_active=True).filter(Supplier.id != supplier.id).first()
+                if existing_supplier:
+                    flash(f'كود المورد "{code}" مستخدم بالفعل', 'danger')
+                    return render_template('edit_supplier.html', supplier=supplier)
+            
+            try:
+                supplier.name = name
+                supplier.code = code
+                supplier.phone = request.form.get('phone')
+                supplier.email = request.form.get('email')
+                supplier.address = request.form.get('address')
+                supplier.tax_id = request.form.get('tax_id')
+                supplier.contact_person = request.form.get('contact_person')
+                supplier.payment_terms = request.form.get('payment_terms')
+                supplier.notes = request.form.get('notes')
+                supplier.updated_at = datetime.now(timezone.utc)
+                
+                db.session.commit()
+                
+                flash(f'تم تحديث بيانات المورد "{name}" بنجاح', 'success')
+                return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تحديث المورد: {str(e)}', 'danger')
+        
+        return render_template('edit_supplier.html', supplier=supplier)
+    
+    @app.route('/supplier/<int:supplier_id>/delete', methods=['POST'])
+    @login_required
+    def delete_supplier(supplier_id):
+        """حذف مورد (Soft Delete) - المدير فقط"""
+        if current_user.role != 'مدير':
+            flash('ليس لديك صلاحية لحذف الموردين', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        supplier = db.get_or_404(Supplier, supplier_id)
+        
+        # التحقق من وجود فواتير نشطة
+        active_invoices = [inv for inv in supplier.invoices if inv.is_active]
+        if active_invoices:
+            flash(f'لا يمكن حذف المورد لأنه لديه {len(active_invoices)} فاتورة نشطة', 'danger')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
+        
+        try:
+            # Soft Delete
+            supplier.is_active = False
+            supplier.deleted_at = datetime.now(timezone.utc)
+            supplier.deleted_by = current_user.username
+            
+            db.session.commit()
+            
+            flash(f'تم حذف المورد "{supplier.name}" بنجاح', 'success')
+            return redirect(url_for('suppliers_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'حدث خطأ أثناء حذف المورد: {str(e)}', 'danger')
+            return redirect(url_for('supplier_detail', supplier_id=supplier.id))
 
     # ==================== مسارات إدارة الفواتير ====================
-    # تم حذف جميع مسارات الفواتير القديمة - سيتم استبدالها بالنظام الجديد
     
-    # تم حذف مسار new_invoice - سيتم استبداله بالنظام الجديد
+    @app.route('/invoices')
+    @login_required
+    def invoices_list():
+        """عرض قائمة فواتير الشراء - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى صفحة الفواتير', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # الفواتير مشتركة لجميع الصالات
+        invoices = PurchaseInvoice.query.filter_by(is_active=True).order_by(PurchaseInvoice.invoice_date.desc()).all()
+        
+        # إحصائيات
+        total_invoices = len(invoices)
+        total_amount = sum(inv.final_amount for inv in invoices)
+        total_paid = sum(inv.paid_amount for inv in invoices)
+        total_remaining = sum(inv.remaining_amount for inv in invoices)
+        
+        # الفواتير المتأخرة
+        today = datetime.now(timezone.utc).date()
+        overdue_invoices = [inv for inv in invoices 
+                           if inv.due_date and inv.due_date < today 
+                           and inv.status != 'paid']
+        
+        stats = {
+            'total_invoices': total_invoices,
+            'total_amount': total_amount,
+            'total_paid': total_paid,
+            'total_remaining': total_remaining,
+            'overdue_count': len(overdue_invoices)
+        }
+        
+        return render_template('invoices.html', invoices=invoices, stats=stats)
     
-    # تم حذف مسار invoice_detail - سيتم استبداله بالنظام الجديد
+    @app.route('/invoice/new', methods=['GET', 'POST'])
+    @login_required
+    def new_invoice():
+        """إضافة فاتورة شراء جديدة - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة فاتورة', 'danger')
+            return redirect(url_for('invoices_list'))
+        
+        if request.method == 'POST':
+            try:
+                # بيانات الفاتورة
+                supplier_id = request.form.get('supplier_id')
+                invoice_number = request.form.get('invoice_number')
+                invoice_date = request.form.get('invoice_date')
+                due_date = request.form.get('due_date')
+                notes = request.form.get('notes')
+                
+                # معالجة المبلغ المدفوع - التأكد من أنه رقم صحيح
+                paid_amount_str = request.form.get('paid_amount', '0')
+                try:
+                    paid_amount = float(paid_amount_str) if paid_amount_str else 0.0
+                except (ValueError, TypeError):
+                    paid_amount = 0.0
+                
+                payment_method = request.form.get('payment_method', 'نقد')
+                
+                # التحقق من البيانات المطلوبة
+                if not supplier_id or not invoice_number:
+                    flash('المورد ورقم الفاتورة مطلوبان', 'danger')
+                    suppliers = Supplier.query.filter_by(is_active=True).all()
+                    materials = Material.query.filter_by(is_active=True).all()
+                    return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
+                
+                # التحقق من عدم تكرار رقم الفاتورة
+                existing = PurchaseInvoice.query.filter_by(invoice_number=invoice_number, is_active=True).first()
+                if existing:
+                    flash(f'رقم الفاتورة "{invoice_number}" مستخدم بالفعل', 'danger')
+                    suppliers = Supplier.query.filter_by(is_active=True).all()
+                    materials = Material.query.filter_by(is_active=True).all()
+                    return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
+                
+                # الحصول على الصالة
+                showroom_id = get_user_showroom_id()
+                
+                # إنشاء الفاتورة
+                invoice = PurchaseInvoice(
+                    supplier_id=int(supplier_id),
+                    showroom_id=showroom_id,
+                    invoice_number=invoice_number,
+                    invoice_date=datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else datetime.now(timezone.utc).date(),
+                    due_date=datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None,
+                    discount_amount=0,  # تم إزالة الخصم
+                    tax_amount=0,  # تم إزالة الضريبة
+                    notes=notes,
+                    created_by=current_user.username
+                )
+                
+                db.session.add(invoice)
+                db.session.flush()  # للحصول على invoice.id
+                
+                # إضافة عناصر الفاتورة
+                material_ids = request.form.getlist('material_id[]')
+                quantities = request.form.getlist('quantity[]')
+                prices = request.form.getlist('price[]')
+                
+                total_amount = 0
+                
+                for mat_id, qty, price in zip(material_ids, quantities, prices):
+                    if mat_id and qty and price:
+                        quantity = float(qty)
+                        purchase_price = float(price)
+                        
+                        item = PurchaseInvoiceItem(
+                            invoice_id=invoice.id,
+                            material_id=int(mat_id),
+                            quantity=quantity,
+                            purchase_price=purchase_price,
+                            discount_amount=0  # لا يوجد خصم على مستوى الصنف
+                        )
+                        
+                        db.session.add(item)
+                        total_amount += item.line_total
+                        
+                        # تحديث كمية المادة في المخزن
+                        material = db.session.get(Material, int(mat_id))
+                        if material:
+                            old_qty = material.quantity_available
+                            material.quantity_available += quantity
+                            
+                            # تحديث سعر التكلفة وفق السياسة المختارة
+                            success, message = update_material_cost_price(
+                                material=material,
+                                new_purchase_price=purchase_price,
+                                quantity=quantity,
+                                invoice_id=invoice.id,
+                                user=current_user
+                            )
+                            
+                            # تسجيل تغيير الكمية في Audit Log
+                            log_quantity_change(
+                                table='material',
+                                record_id=material.id,
+                                old_qty=old_qty,
+                                new_qty=material.quantity_available,
+                                reason=f'إضافة من فاتورة {invoice.invoice_number}'
+                            )
+                            
+                            # تحديث سعر الوحدة أيضاً (للتوافق مع الكود القديم)
+                            material.unit_price = material.cost_price
+                
+                # حساب المبلغ النهائي
+                invoice.total_amount = total_amount
+                invoice.final_amount = total_amount  # بدون خصم أو ضريبة
+                
+                # تسجيل الدفعة الأولى إذا كانت أكبر من صفر
+                if paid_amount > 0:
+                    if paid_amount > invoice.final_amount:
+                        paid_amount = invoice.final_amount
+                    
+                    payment = SupplierPayment(
+                        supplier_id=invoice.supplier_id,
+                        invoice_id=invoice.id,
+                        amount=paid_amount,
+                        payment_date=datetime.now(timezone.utc).date(),
+                        payment_method=payment_method,
+                        notes=f'دفعة أولى عند إدخال الفاتورة',
+                        paid_by=current_user.username
+                    )
+                    db.session.add(payment)
+                
+                db.session.commit()
+                
+                if paid_amount > 0:
+                    flash(f'تم إضافة الفاتورة "{invoice_number}" مع دفعة أولى {paid_amount:.2f} د.ل بنجاح', 'success')
+                else:
+                    flash(f'تم إضافة الفاتورة "{invoice_number}" بنجاح', 'success')
+                    
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء إضافة الفاتورة: {str(e)}', 'danger')
+        
+        # GET request
+        suppliers = Supplier.query.filter_by(is_active=True).all()
+        materials = Material.query.filter_by(is_active=True).all()
+        
+        # التحقق من المتطلبات المسبقة
+        if not suppliers:
+            flash('⚠️ يجب إضافة مورد واحد على الأقل قبل إنشاء فاتورة. اذهب إلى "إدارة الموردين" > "إضافة مورد جديد"', 'warning')
+            return redirect(url_for('invoices_list'))
+        
+        if not materials:
+            flash('⚠️ يجب إضافة مادة واحدة على الأقل قبل إنشاء فاتورة. اذهب إلى "إدارة المواد" > "إضافة مادة جديدة"', 'warning')
+            return redirect(url_for('invoices_list'))
+        
+        return render_template('new_invoice.html', suppliers=suppliers, materials=materials)
     
-    # تم حذف مسار edit_invoice - سيتم استبداله بالنظام الجديد
-    # تم حذف مسار cancel_invoice - سيتم استبداله بالنظام الجديد
-    # تم حذف مسار add_invoice_payment - سيتم استبداله بالنظام الجديد
+    @app.route('/invoice/<int:invoice_id>')
+    @login_required
+    def invoice_detail(invoice_id):
+        """عرض تفاصيل فاتورة"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(PurchaseInvoice, invoice_id)
+        
+        # حساب الإحصائيات
+        stats = {
+            'total_items': len(invoice.items),
+            'total_amount': invoice.total_amount,
+            'discount': invoice.discount_amount,
+            'tax': invoice.tax_amount,
+            'final_amount': invoice.final_amount,
+            'paid_amount': invoice.paid_amount,
+            'remaining_amount': invoice.remaining_amount,
+            'payment_count': len([p for p in invoice.payments if p.is_active])
+        }
+        
+        return render_template('invoice_detail.html', invoice=invoice, stats=stats)
+    
+    @app.route('/invoice/<int:invoice_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_invoice(invoice_id):
+        """تعديل فاتورة شراء - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لتعديل الفاتورة', 'danger')
+            return redirect(url_for('invoices_list'))
+        
+        invoice = db.get_or_404(PurchaseInvoice, invoice_id)
+        
+        # التحقق من أن الفاتورة لم يتم إلغاؤها
+        if not invoice.is_active:
+            flash('لا يمكن تعديل فاتورة ملغاة', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice_id))
+        
+        # التحقق من أنه لم يتم دفع أي مبلغ بعد
+        if invoice.amount_paid > 0:
+            flash('لا يمكن تعديل فاتورة تم دفع مبالغ عليها. يمكنك إضافة دفعات جديدة فقط.', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice_id))
+        
+        if request.method == 'POST':
+            try:
+                # تحديث بيانات الفاتورة
+                invoice_number = request.form.get('invoice_number')
+                supplier_id = request.form.get('supplier_id')
+                invoice_date = request.form.get('invoice_date')
+                due_date = request.form.get('due_date')
+                notes = request.form.get('notes')
+                
+                # التحقق من البيانات المطلوبة
+                if not supplier_id or not invoice_number:
+                    flash('المورد ورقم الفاتورة مطلوبان', 'danger')
+                    suppliers = Supplier.query.filter_by(is_active=True).all()
+                    materials = Material.query.filter_by(is_active=True).all()
+                    return render_template('edit_invoice.html', invoice=invoice, suppliers=suppliers, materials=materials)
+                
+                # التحقق من عدم تكرار رقم الفاتورة (إلا إذا كان نفس الرقم)
+                if invoice_number != invoice.invoice_number:
+                    existing = PurchaseInvoice.query.filter_by(invoice_number=invoice_number, is_active=True).first()
+                    if existing:
+                        flash(f'رقم الفاتورة "{invoice_number}" مستخدم بالفعل', 'danger')
+                        suppliers = Supplier.query.filter_by(is_active=True).all()
+                        materials = Material.query.filter_by(is_active=True).all()
+                        return render_template('edit_invoice.html', invoice=invoice, suppliers=suppliers, materials=materials)
+                
+                # إرجاع الكميات القديمة للمخزن أولاً
+                for item in invoice.items:
+                    material = db.session.get(Material, item.material_id)
+                    if material:
+                        material.quantity_available -= item.quantity
+                
+                # حذف العناصر القديمة
+                for item in invoice.items:
+                    db.session.delete(item)
+                
+                # تحديث بيانات الفاتورة
+                invoice.supplier_id = int(supplier_id)
+                invoice.invoice_number = invoice_number
+                invoice.invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else datetime.now(timezone.utc).date()
+                invoice.due_date = datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None
+                invoice.discount_amount = 0  # تم إزالة الخصم
+                invoice.tax_amount = 0  # تم إزالة الضريبة
+                invoice.notes = notes
+                invoice.updated_at = datetime.now(timezone.utc)
+                
+                # إضافة عناصر الفاتورة الجديدة
+                material_ids = request.form.getlist('material_id[]')
+                quantities = request.form.getlist('quantity[]')
+                prices = request.form.getlist('price[]')
+                
+                total_amount = 0
+                
+                for mat_id, qty, price in zip(material_ids, quantities, prices):
+                    if mat_id and qty and price:
+                        quantity = float(qty)
+                        purchase_price = float(price)
+                        
+                        item = PurchaseInvoiceItem(
+                            invoice_id=invoice.id,
+                            material_id=int(mat_id),
+                            quantity=quantity,
+                            purchase_price=purchase_price,
+                            discount_amount=0  # لا يوجد خصم على مستوى الصنف
+                        )
+                        
+                        db.session.add(item)
+                        total_amount += item.line_total
+                        
+                        # تحديث كمية المادة في المخزن
+                        material = db.session.get(Material, int(mat_id))
+                        if material:
+                            material.quantity_available += quantity
+                            material.purchase_price = purchase_price
+                            material.unit_price = purchase_price
+                
+                # حساب المبلغ النهائي
+                invoice.total_amount = total_amount
+                invoice.final_amount = total_amount  # بدون خصم أو ضريبة
+                
+                db.session.commit()
+                
+                flash(f'تم تحديث الفاتورة "{invoice_number}" بنجاح', 'success')
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تحديث الفاتورة: {str(e)}', 'danger')
+        
+        # GET request
+        suppliers = Supplier.query.filter_by(is_active=True).all()
+        materials = Material.query.filter_by(is_active=True).all()
+        
+        # التحقق من المتطلبات المسبقة
+        if not suppliers:
+            flash('⚠️ يجب إضافة مورد واحد على الأقل', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        if not materials:
+            flash('⚠️ يجب إضافة مادة واحدة على الأقل لتعديل الفاتورة', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        return render_template('edit_invoice.html', invoice=invoice, suppliers=suppliers, materials=materials)
+    
+    @app.route('/invoice/<int:invoice_id>/cancel', methods=['POST'])
+    @login_required
+    def cancel_invoice(invoice_id):
+        """إلغاء فاتورة - المدير فقط"""
+        if current_user.role != 'مدير':
+            flash('ليس لديك صلاحية لإلغاء الفواتير', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(PurchaseInvoice, invoice_id)
+        
+        # التحقق من أن الفاتورة غير ملغاة
+        if invoice.cancelled_at:
+            flash('هذه الفاتورة ملغاة مسبقاً', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        # التحقق من عدم وجود دفعات
+        if invoice.paid_amount > 0:
+            flash('لا يمكن إلغاء فاتورة تم دفع مبلغ منها', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        try:
+            cancellation_reason = request.form.get('cancellation_reason', 'لم يتم تحديد السبب')
+            
+            # إلغاء الفاتورة (Soft Delete)
+            invoice.is_active = False
+            invoice.status = 'cancelled'
+            invoice.cancelled_at = datetime.now(timezone.utc)
+            invoice.cancelled_by = current_user.username
+            invoice.cancellation_reason = cancellation_reason
+            
+            # إرجاع الكميات للمخزن (خصم)
+            for item in invoice.items:
+                material = item.material
+                if material:
+                    material.quantity_available -= item.quantity
+            
+            db.session.commit()
+            
+            flash(f'تم إلغاء الفاتورة "{invoice.invoice_number}" بنجاح', 'success')
+            return redirect(url_for('invoices_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'حدث خطأ أثناء إلغاء الفاتورة: {str(e)}', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+    
+    @app.route('/invoice/<int:invoice_id>/add_payment', methods=['GET', 'POST'])
+    @login_required
+    def add_invoice_payment(invoice_id):
+        """إضافة دفعة لفاتورة - مسؤول المخزن فقط"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لإضافة دفعة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(PurchaseInvoice, invoice_id)
+        
+        # التحقق من أن الفاتورة نشطة
+        if not invoice.is_active:
+            flash('لا يمكن إضافة دفعة لفاتورة ملغاة', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        # التحقق من أن الفاتورة ليست مدفوعة بالكامل
+        if invoice.remaining_amount <= 0:
+            flash('الفاتورة مدفوعة بالكامل', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        if request.method == 'POST':
+            try:
+                amount = float(request.form.get('amount'))
+                payment_method = request.form.get('payment_method', 'نقد')
+                payment_date = request.form.get('payment_date')
+                reference_number = request.form.get('reference_number')
+                notes = request.form.get('notes')
+                
+                # التحقق من المبلغ
+                if amount <= 0:
+                    flash('المبلغ يجب أن يكون أكبر من صفر', 'danger')
+                    return render_template('add_invoice_payment.html', invoice=invoice)
+                
+                if amount > invoice.remaining_amount:
+                    flash(f'المبلغ أكبر من المتبقي ({invoice.remaining_amount:.2f})', 'danger')
+                    return render_template('add_invoice_payment.html', invoice=invoice)
+                
+                # إنشاء الدفعة
+                payment = SupplierPayment(
+                    supplier_id=invoice.supplier_id,
+                    invoice_id=invoice.id,
+                    amount=amount,
+                    payment_method=payment_method,
+                    payment_date=datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now(timezone.utc).date(),
+                    reference_number=reference_number,
+                    notes=notes,
+                    paid_by=current_user.username
+                )
+                
+                db.session.add(payment)
+                
+                # تحديث حالة الفاتورة
+                db.session.flush()
+                remaining = invoice.remaining_amount
+                
+                if remaining <= 0.01:  # تقريباً صفر
+                    invoice.status = 'paid'
+                elif invoice.paid_amount > 0:
+                    invoice.status = 'partial'
+                
+                db.session.commit()
+                
+                flash(f'تم تسجيل دفعة بمبلغ {amount:.2f} دينار', 'success')
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء تسجيل الدفعة: {str(e)}', 'danger')
+        
+        # GET request
+        return render_template('add_invoice_payment.html', invoice=invoice)
 
     # ==================== API: تغيير فلتر الصالة ====================
     @app.route('/set_showroom_filter', methods=['POST'])
