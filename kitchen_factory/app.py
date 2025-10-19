@@ -3297,20 +3297,29 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None):
     else:
         font_name = 'Helvetica'
     
-    # ========== 1. شعار المؤسسة ==========
+    # ========== 1. معلومات الصالة ==========
     y_position = height - 2*cm
     
-    # صندوق الشعار (placeholder)
+    # صندوق معلومات الصالة
     p.setFillColorRGB(0.95, 0.95, 0.95)
-    p.rect(width/2 - 3*cm, y_position - 2*cm, 6*cm, 2*cm, fill=1, stroke=1)
+    p.rect(width/2 - 4*cm, y_position - 2.5*cm, 8*cm, 2.5*cm, fill=1, stroke=1)
     p.setFillColorRGB(0, 0, 0)
     
-    # نص داخل صندوق الشعار
-    p.setFont(font_name, 14)
-    logo_text = format_arabic_text("مصنع المطابخ")
-    p.drawCentredString(width/2, y_position - 0.8*cm, logo_text)
+    # اسم الصالة
+    p.setFont(font_name, 16)
+    showroom_name = order.showroom.name if order.showroom else "الصالة الرئيسية"
+    showroom_text = format_arabic_text(showroom_name)
+    p.drawCentredString(width/2, y_position - 0.8*cm, showroom_text)
+    
+    # رقم الهاتف والعنوان
     p.setFont(font_name, 10)
-    p.drawCentredString(width/2, y_position - 1.3*cm, "Kitchen Factory")
+    if order.showroom and order.showroom.phone:
+        phone_text = format_arabic_text(f"هاتف: {order.showroom.phone}")
+        p.drawCentredString(width/2, y_position - 1.4*cm, phone_text)
+    
+    if order.showroom and order.showroom.address:
+        address_text = format_arabic_text(f"العنوان: {order.showroom.address}")
+        p.drawCentredString(width/2, y_position - 1.8*cm, address_text)
     
     y_position -= 3*cm
     
@@ -3330,11 +3339,13 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None):
     p.setFillColorRGB(1, 1, 1)  # أبيض
     p.setFont(font_name, 11)
     
-    # رقم الطلب
+    # رقم الطلب - تم تحسين المحاذاة 2025-10-19
     order_label = format_arabic_text("رقم الطلب")
-    p.drawString(width - 3*cm, y_position - 0.7*cm, order_label)
+    order_label_width = p.stringWidth(order_label, font_name, 11)
+    p.drawString(width - 3*cm - order_label_width/2, y_position - 0.7*cm, order_label)
     p.setFont(font_name, 14)
-    p.drawString(width - 3*cm, y_position - 1.3*cm, str(order.id))
+    order_number_width = p.stringWidth(str(order.id), font_name, 14)
+    p.drawString(width - 3*cm - order_number_width/2, y_position - 1.3*cm, str(order.id))
     
     # التاريخ
     p.setFont(font_name, 11)
@@ -3443,13 +3454,25 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None):
     remaining_label = format_arabic_text("باقي القيمة")
     p.drawCentredString(width/2, y_position - 1*cm, remaining_label)
     
-    # المبلغ
-    p.setFont(font_name, 20)
+    # المبلغ - تم تحسين التخطيط لحل التداخل 2025-10-19
+    p.setFont(font_name, 18)  # تصغير الخط قليلاً
     p.setFillColorRGB(0, 0.47, 1)
-    p.drawString(width/2 - 1.5*cm, y_position - 1.9*cm, "LYD")
-    p.drawCentredString(width/2 + 1*cm, y_position - 1.9*cm, f"{remaining:.2f}")
-    p.setFont(font_name, 16)
-    p.drawString(width/2 + 2.8*cm, y_position - 1.9*cm, format_arabic_text("د."))
+    
+    # حساب المسافات لتجنب التداخل
+    currency_text = "LYD"
+    amount_text = f"{remaining:.2f}"
+    symbol_text = format_arabic_text("د.")
+    
+    currency_width = p.stringWidth(currency_text, font_name, 18)
+    amount_width = p.stringWidth(amount_text, font_name, 18)
+    symbol_width = p.stringWidth(symbol_text, font_name, 18)
+    
+    # توزيع العناصر مع مسافات مناسبة
+    start_x = width/2 - 2*cm
+    p.drawString(start_x, y_position - 1.9*cm, currency_text)
+    p.drawString(start_x + currency_width + 0.3*cm, y_position - 1.9*cm, amount_text)
+    p.drawString(start_x + currency_width + amount_width + 0.6*cm, y_position - 1.9*cm, symbol_text)
+    
     p.setFillColorRGB(0, 0, 0)
     
     y_position -= 4*cm
@@ -3460,17 +3483,21 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None):
     p.rect(2*cm, y_position - 3*cm, width - 4*cm, 3*cm, fill=1, stroke=1)
     p.setFillColorRGB(0, 0, 0)
     
-    # اسم المستلم
+    # اسم المستلم - تم تحسين المحاذاة 2025-10-19
     p.setFont(font_name, 12)
     recipient_label = format_arabic_text("اسم المستلم")
-    p.drawString(width - 5*cm, y_position - 1*cm, recipient_label)
+    recipient_label_width = p.stringWidth(recipient_label, font_name, 12)
+    p.drawString(width - 5*cm - recipient_label_width/2, y_position - 1*cm, recipient_label)
     
     p.setFont(font_name, 11)
     recipient_name = format_arabic_text(payment.received_by if payment.received_by else current_user.username)
-    p.drawString(width - 5*cm, y_position - 1.8*cm, recipient_name)
+    recipient_name_width = p.stringWidth(recipient_name, font_name, 11)
+    p.drawString(width - 5*cm - recipient_name_width/2, y_position - 1.8*cm, recipient_name)
     
-    # خط التوقيع
-    p.line(width - 5*cm, y_position - 2*cm, width - 5*cm + 4*cm, y_position - 2*cm)
+    # خط التوقيع - محاذاة مع النص أعلاه
+    line_start = width - 5*cm - recipient_name_width/2
+    line_end = line_start + max(recipient_name_width, 3*cm)
+    p.line(line_start, y_position - 2*cm, line_end, y_position - 2*cm)
     
     # توقيع المستلم
     p.setFont(font_name, 12)
