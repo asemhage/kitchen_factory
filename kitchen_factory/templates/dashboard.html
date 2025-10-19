@@ -36,8 +36,8 @@
         </a>
     </div>
 
-    <!-- الإيرادات - للمدير فقط -->
-    {% if current_user.role == 'مدير' %}
+    <!-- الإيرادات - للمدير وموظف الاستقبال -->
+    {% if current_user.role in ['مدير', 'موظف استقبال'] %}
     <div class="col-xl-3 col-md-6 mb-3">
         <div class="card border-start border-success border-4 shadow-sm h-100">
             <div class="card-body">
@@ -56,8 +56,8 @@
     </div>
     {% endif %}
 
-    <!-- المتبقي (الديون) - للمدير فقط -->
-    {% if current_user.role == 'مدير' %}
+    <!-- المتبقي (الديون) - للمدير وموظف الاستقبال -->
+    {% if current_user.role in ['مدير', 'موظف استقبال'] %}
     <div class="col-xl-3 col-md-6 mb-3">
         <div class="card border-start border-warning border-4 shadow-sm h-100">
             <div class="card-body">
@@ -76,8 +76,8 @@
     </div>
     {% endif %}
 
-    <!-- متوسط قيمة الطلب - للمدير فقط -->
-    {% if current_user.role == 'مدير' %}
+    <!-- متوسط قيمة الطلب - للمدير وموظف الاستقبال -->
+    {% if current_user.role in ['مدير', 'موظف استقبال'] %}
     <div class="col-xl-3 col-md-6 mb-3">
         <div class="card border-start border-info border-4 shadow-sm h-100">
             <div class="card-body">
