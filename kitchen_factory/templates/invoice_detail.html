@@ -39,7 +39,19 @@
                             <th>تاريخ الفاتورة:</th>
                             <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
                         </tr>
-                        <!-- تم إزالة تاريخ الاستحقاق -->
+                        <tr>
+                            <th>تاريخ الاستحقاق:</th>
+                            <td>
+                                {% if invoice.due_date %}
+                                    {{ invoice.due_date.strftime('%Y-%m-%d') }}
+                                    {% if invoice.due_date < now().date() and invoice.status != 'paid' %}
+                                        <span class="badge badge-danger">متأخر</span>
+                                    {% endif %}
+                                {% else %}
+                                    غير محدد
+                                {% endif %}
+                            </td>
+                        </tr>
                         <tr>
                             <th>أضيفت بواسطة:</th>
                             <td>{{ invoice.created_by }}</td>

@@ -75,7 +75,7 @@
                                 <th>رقم الفاتورة</th>
                                 <th>المورد</th>
                                 <th>التاريخ</th>
-                                <!-- تم إزالة تاريخ الاستحقاق -->
+                                <th>تاريخ الاستحقاق</th>
                                 <th>المبلغ الكلي</th>
                                 <th>المدفوع</th>
                                 <th>المتبقي</th>
@@ -95,6 +95,16 @@
                                     </a>
                                 </td>
                                 <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if invoice.due_date %}
+                                        {{ invoice.due_date.strftime('%Y-%m-%d') }}
+                                        {% if invoice.due_date < now().date() and invoice.status != 'paid' %}
+                                            <span class="badge badge-danger">متأخر</span>
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
                                 <td>{{ "%.2f"|format(invoice.final_amount) }} د.ل</td>
                                 <td>{{ "%.2f"|format(invoice.paid_amount) }} د.ل</td>
                                 <td>
