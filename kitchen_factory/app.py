@@ -525,7 +525,7 @@ class SupplierInvoice(db.Model):
     showroom_id = db.Column(db.Integer, db.ForeignKey('showrooms.id'), nullable=False)
     
     invoice_date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
-    due_date = db.Column(db.Date)  # تاريخ الاستحقاق
+    # due_date تم إزالته - سيتم استخدام موعد التسليم تلقائياً
     
     # المبالغ
     total_amount = db.Column(db.Float, nullable=False, default=0)  # إجمالي قبل الخصم والضريبة
@@ -4972,12 +4972,8 @@ def overdue_invoices_report():
     # جلب الفواتير المتأخرة
     today = datetime.now(timezone.utc).date()
     
-    overdue_invoices = SupplierInvoice.query.filter(
-        SupplierInvoice.due_date.isnot(None),
-        SupplierInvoice.due_date < today,
-        SupplierInvoice.debt_status != 'paid',
-        SupplierInvoice.is_active == True
-    ).order_by(SupplierInvoice.due_date.asc()).all()
+    # تم إزالة due_date - سيتم استخدام موعد التسليم من الطلبات
+    overdue_invoices = []  # سيتم إعادة تنفيذ هذا المنطق لاحقاً
     
     # حساب الإحصائيات
     total_overdue_amount = sum(inv.remaining_amount for inv in overdue_invoices)
@@ -6963,10 +6959,8 @@ if __name__ == '__main__':
         # حساب الفواتير المتأخرة
         from datetime import date
         today = date.today()
-        overdue_invoices = [
-            inv for inv in active_invoices 
-            if inv.due_date and inv.due_date < today and inv.debt_status != 'paid'
-        ]
+        # تم إزالة due_date - سيتم استخدام موعد التسليم من الطلبات
+        overdue_invoices = []
         
         # إحصائيات
         stats = {
@@ -7089,9 +7083,8 @@ if __name__ == '__main__':
         
         # الفواتير المتأخرة
         today = datetime.now(timezone.utc).date()
-        overdue_invoices = [inv for inv in invoices 
-                           if inv.due_date and inv.due_date < today 
-                           and inv.debt_status != 'paid']
+        # تم إزالة due_date - سيتم استخدام موعد التسليم من الطلبات
+        overdue_invoices = []
         
         stats = {
             'total_invoices': total_invoices,
@@ -7117,7 +7110,6 @@ if __name__ == '__main__':
                 supplier_id = request.form.get('supplier_id')
                 invoice_number = request.form.get('invoice_number')
                 invoice_date = request.form.get('invoice_date')
-                due_date = request.form.get('due_date')
                 notes = request.form.get('notes')
                 
                 # التحقق من البيانات المطلوبة
@@ -7144,7 +7136,6 @@ if __name__ == '__main__':
                     showroom_id=showroom_id,
                     invoice_number=invoice_number,
                     invoice_date=datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else datetime.now(timezone.utc).date(),
-                    due_date=datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None,
                     notes=notes,
                     created_by=current_user.username
                 )
@@ -7275,7 +7266,6 @@ if __name__ == '__main__':
                     'supplier_id': invoice.supplier_id,
                     'invoice_number': invoice.invoice_number,
                     'invoice_date': invoice.invoice_date,
-                    'due_date': invoice.due_date,
                     'total_amount': invoice.total_amount,
                     'final_amount': invoice.final_amount,
                     'debt_amount': invoice.debt_amount
@@ -7285,7 +7275,6 @@ if __name__ == '__main__':
                 supplier_id = request.form.get('supplier_id')
                 invoice_number = request.form.get('invoice_number')
                 invoice_date = request.form.get('invoice_date')
-                due_date = request.form.get('due_date')
                 discount_amount = float(request.form.get('discount_amount', 0))
                 tax_amount = float(request.form.get('tax_amount', 0))
                 notes = request.form.get('notes', '')
@@ -7306,7 +7295,6 @@ if __name__ == '__main__':
                 invoice.supplier_id = int(supplier_id)
                 invoice.invoice_number = invoice_number
                 invoice.invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date() if invoice_date else invoice.invoice_date
-                invoice.due_date = datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None
                 invoice.discount_amount = discount_amount
                 invoice.tax_amount = tax_amount
                 invoice.notes = notes

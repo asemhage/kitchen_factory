@@ -64,7 +64,7 @@
                         <tr>
                             <th>رقم الفاتورة</th>
                             <th>المورد</th>
-                            <th>تاريخ الاستحقاق</th>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <th>أيام التأخير</th>
                             <th>المبلغ المتبقي</th>
                             <th>الإجراءات</th>
@@ -75,7 +75,7 @@
                         <tr class="table-danger">
                             <td><strong>{{ invoice.invoice_number }}</strong></td>
                             <td>{{ invoice.supplier.name }}</td>
-                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <td>
                                 <span class="badge bg-danger">
                                     {{ (today - invoice.due_date).days }} يوم
@@ -110,7 +110,7 @@
                         <tr>
                             <th>رقم الفاتورة</th>
                             <th>المورد</th>
-                            <th>تاريخ الاستحقاق</th>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <th>أيام التأخير</th>
                             <th>المبلغ المتبقي</th>
                             <th>الإجراءات</th>
@@ -121,10 +121,11 @@
                         <tr class="table-warning">
                             <td><strong>{{ invoice.invoice_number }}</strong></td>
                             <td>{{ invoice.supplier.name }}</td>
-                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <td>
+                                <!-- تم إزالة حساب أيام التأخير -->
                                 <span class="badge bg-warning text-dark">
-                                    {{ (today - invoice.due_date).days }} يوم
+                                    غير محدد
                                 </span>
                             </td>
                             <td><strong>{{ "%.2f"|format(invoice.remaining_amount) }} د.ل</strong></td>
@@ -156,7 +157,7 @@
                         <tr>
                             <th>رقم الفاتورة</th>
                             <th>المورد</th>
-                            <th>تاريخ الاستحقاق</th>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <th>أيام التأخير</th>
                             <th>المبلغ المتبقي</th>
                             <th>الإجراءات</th>
@@ -167,7 +168,7 @@
                         <tr class="table-info">
                             <td><strong>{{ invoice.invoice_number }}</strong></td>
                             <td>{{ invoice.supplier.name }}</td>
-                            <td>{{ invoice.due_date.strftime('%Y-%m-%d') }}</td>
+                            <!-- تم إزالة تاريخ الاستحقاق -->
                             <td>
                                 <span class="badge bg-info">
                                     {{ (today - invoice.due_date).days }} يوم
