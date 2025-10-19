@@ -4565,8 +4565,8 @@ def technicians():
 @app.route('/technician/new', methods=['GET', 'POST'])
 @login_required
 def new_technician():
-    """إضافة فني جديد - للمدير ومسؤول الإنتاج فقط"""
-    if current_user.role not in ['مدير', 'مسؤول إنتاج']:
+    """إضافة فني جديد - للمدير ومسؤول الإنتاج ومسؤول العمليات"""
+    if current_user.role not in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لإضافة فني جديد', 'danger')
         return redirect(url_for('technicians'))
     
@@ -4662,7 +4662,7 @@ def technician_detail(technician_id):
 @login_required
 def edit_technician(technician_id):
     """تعديل بيانات الفني"""
-    if current_user.role not in ['مدير', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لتعديل بيانات الفنيين', 'danger')
         return redirect(url_for('technician_detail', technician_id=technician_id))
     
@@ -4710,7 +4710,7 @@ def technician_dues(technician_id):
 @login_required
 def pay_technician_dues(technician_id):
     """دفع مستحقات الفني - للمدير فقط"""
-    if current_user.role not in ['مدير', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لدفع مستحقات الفنيين', 'danger')
         return redirect(url_for('technician_dues', technician_id=technician_id))
     
