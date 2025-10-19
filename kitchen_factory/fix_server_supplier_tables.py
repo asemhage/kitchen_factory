@@ -155,12 +155,13 @@ def fix_server_supplier_tables():
         
         try:
             audit_log = AuditLog(
-                user_id=None,
+                table_name='system',
+                record_id=0,
                 action='fix_server_supplier_tables',
                 reason='إصلاح جداول الموردين على السيرفر',
-                details='تم حذف الجداول القديمة وإنشاء الجداول الجديدة بنجاح',
+                notes='تم حذف الجداول القديمة وإنشاء الجداول الجديدة بنجاح',
                 showroom_id=None,
-                created_at=datetime.now(timezone.utc)
+                user_name='system'
             )
             db.session.add(audit_log)
             db.session.commit()
