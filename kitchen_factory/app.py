@@ -7240,6 +7240,81 @@ if __name__ == '__main__':
         
         return render_template('invoice_detail.html', invoice=invoice, stats=stats)
     
+    @app.route('/invoice/<int:invoice_id>/add_payment', methods=['GET', 'POST'])
+    @login_required
+    def add_invoice_payment(invoice_id):
+        """إضافة دفعة لفاتورة محددة - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(SupplierInvoice, invoice_id)
+        
+        if request.method == 'POST':
+            amount = float(request.form.get('amount', 0))
+            payment_method = request.form.get('payment_method', 'نقد')
+            payment_date = request.form.get('payment_date')
+            reference_number = request.form.get('reference_number', '')
+            notes = request.form.get('notes', '')
+            
+            if amount <= 0:
+                flash('المبلغ يجب أن يكون أكبر من صفر', 'danger')
+                return render_template('add_invoice_payment.html', invoice=invoice)
+            
+            try:
+                # إنشاء دفعة مرنة للمورد
+                payment = SupplierPayment(
+                    supplier_id=invoice.supplier_id,
+                    debt_id=invoice.supplier.debt.id if invoice.supplier.debt else None,
+                    amount=amount,
+                    payment_date=datetime.strptime(payment_date, '%Y-%m-%d') if payment_date else datetime.now(timezone.utc),
+                    payment_method=payment_method,
+                    payment_type='specific_invoice',
+                    allocation_method='manual',
+                    reference_number=reference_number,
+                    notes=notes,
+                    created_by=current_user.username
+                )
+                
+                db.session.add(payment)
+                db.session.flush()
+                
+                # توزيع الدفعة على الفاتورة المحددة
+                allocated_amount = min(amount, invoice.remaining_amount)
+                
+                allocation = PaymentAllocation(
+                    payment_id=payment.id,
+                    invoice_id=invoice.id,
+                    allocated_amount=allocated_amount,
+                    allocation_method='manual',
+                    notes=f'دفعة مخصصة للفاتورة {invoice.invoice_number}'
+                )
+                
+                db.session.add(allocation)
+                
+                # تحديث الفاتورة
+                invoice.paid_amount += allocated_amount
+                if invoice.paid_amount >= invoice.debt_amount:
+                    invoice.debt_status = 'paid'
+                else:
+                    invoice.debt_status = 'partial'
+                
+                # تحديث دين المورد
+                if invoice.supplier.debt:
+                    invoice.supplier.debt.paid_amount += allocated_amount
+                    invoice.supplier.debt.remaining_debt = invoice.supplier.debt.total_debt - invoice.supplier.debt.paid_amount
+                
+                db.session.commit()
+                
+                flash(f'تم إضافة الدفعة بنجاح: {amount:,.2f} د.ل', 'success')
+                return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'حدث خطأ أثناء إضافة الدفعة: {str(e)}', 'danger')
+        
+        return render_template('add_invoice_payment.html', invoice=invoice)
+    
     # ==================== مسارات إدارة المدفوعات - النظام الجديد ====================
     
     @app.route('/supplier/<int:supplier_id>/add_payment', methods=['GET', 'POST'])
