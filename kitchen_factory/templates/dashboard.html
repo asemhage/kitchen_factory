@@ -18,20 +18,22 @@
 <div class="row mb-4">
     <!-- إجمالي الطلبات -->
     <div class="col-xl-3 col-md-6 mb-3">
-        <div class="card border-start border-primary border-4 shadow-sm h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">إجمالي الطلبات</div>
-                        <div class="h4 mb-0 font-weight-bold">{{ total_orders }}</div>
-                        <small class="text-muted">جميع الطلبات</small>
-                    </div>
-                    <div class="text-primary">
-                        <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+        <a href="{{ url_for('orders') }}" class="text-decoration-none">
+            <div class="card border-start border-primary border-4 shadow-sm h-100 hover-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">إجمالي الطلبات</div>
+                            <div class="h4 mb-0 font-weight-bold">{{ total_orders }}</div>
+                            <small class="text-muted">جميع الطلبات</small>
+                        </div>
+                        <div class="text-primary">
+                            <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- الإيرادات - للمدير فقط -->
@@ -446,5 +448,22 @@ document.addEventListener('DOMContentLoaded', function() {
                       String(today.getDate()).padStart(2, '0');
     document.getElementById('current-date').textContent = dateString;
 });
+</script>
+
+<style>
+.hover-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.hover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+
+.hover-card:hover .text-primary {
+    color: #0056b3 !important;
+}
+</style>
 </script>
 {% endblock %}
