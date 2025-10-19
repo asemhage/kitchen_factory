@@ -5828,7 +5828,64 @@ def inject_archive_helpers():
 # تشغيل التطبيق
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        # إنشاء قاعدة البيانات مع التحقق من الجداول المفقودة
+        print("🔧 بدء إنشاء قاعدة البيانات...")
+        
+        try:
+            # إنشاء جميع الجداول
+            db.create_all()
+            print("✅ تم إنشاء الجداول الأساسية")
+            
+            # التحقق من جداول الموردين المطلوبة
+            required_supplier_tables = ['suppliers', 'supplier_debts', 'supplier_invoices', 'supplier_payments', 'payment_allocations']
+            
+            # فحص الجداول الموجودة
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            missing_tables = [table for table in required_supplier_tables if table not in existing_tables]
+            
+            if missing_tables:
+                print(f"⚠️  جداول مفقودة: {missing_tables}")
+                print("🔧 محاولة إنشاء الجداول المفقودة...")
+                
+                # إنشاء الجداول المفقودة يدوياً
+                import sqlite3
+                conn = sqlite3.connect(app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', ''))
+                cursor = conn.cursor()
+                
+                for table_name in missing_tables:
+                    try:
+                        if table_name == 'payment_allocations':
+                            cursor.execute("""
+                                CREATE TABLE payment_allocations (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    payment_id INTEGER NOT NULL,
+                                    invoice_id INTEGER NOT NULL,
+                                    allocated_amount DECIMAL(10,2) NOT NULL,
+                                    allocation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    allocation_method VARCHAR(20) DEFAULT 'auto_fifo',
+                                    notes TEXT,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    FOREIGN KEY (payment_id) REFERENCES supplier_payments (id) ON DELETE CASCADE,
+                                    FOREIGN KEY (invoice_id) REFERENCES supplier_invoices (id) ON DELETE CASCADE
+                                )
+                            """)
+                            print(f"   ✅ تم إنشاء جدول {table_name}")
+                        # يمكن إضافة جداول أخرى هنا إذا لزم الأمر
+                    except Exception as e:
+                        print(f"   ⚠️  فشل إنشاء جدول {table_name}: {e}")
+                
+                conn.commit()
+                conn.close()
+                print("✅ تم إنشاء الجداول المفقودة")
+            else:
+                print("✅ جميع جداول الموردين موجودة")
+                
+        except Exception as e:
+            print(f"❌ خطأ في إنشاء قاعدة البيانات: {e}")
+            # لا نوقف التطبيق، نكمل التشغيل
 
         # إنشاء مستخدم مدير افتراضي إذا لم يكن موجودًا
         if not User.query.filter_by(username='admin').first():
@@ -5839,6 +5896,7 @@ if __name__ == '__main__':
             )
             db.session.add(admin)
             db.session.commit()
+            print("✅ تم إنشاء المستخدم الافتراضي")
 
     # نقطة نهاية API لجلب سعر المادة
     @app.route('/api/material/<int:material_id>/price', methods=['GET'])
