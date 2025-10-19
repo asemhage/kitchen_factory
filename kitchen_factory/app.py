@@ -6960,13 +6960,22 @@ if __name__ == '__main__':
         # المدفوعات النشطة
         active_payments = [pay for pay in supplier.payments if pay.is_active]
         
+        # حساب الفواتير المتأخرة
+        from datetime import date
+        today = date.today()
+        overdue_invoices = [
+            inv for inv in active_invoices 
+            if inv.due_date and inv.due_date < today and inv.debt_status != 'paid'
+        ]
+        
         # إحصائيات
         stats = {
             'total_invoices': len(active_invoices),
             'total_amount': sum(inv.final_amount for inv in active_invoices),
             'total_paid': supplier.total_paid,
             'total_remaining': supplier.total_debt,
-            'payments_count': len(active_payments)
+            'payments_count': len(active_payments),
+            'overdue_invoices': len(overdue_invoices)
         }
         
         return render_template('supplier_detail.html', 
