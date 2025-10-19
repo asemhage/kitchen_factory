@@ -81,7 +81,8 @@
                             {% endif %}
                         </p>
                         
-                        <!-- المعلومات المالية -->
+                        <!-- المعلومات المالية - للمدير وموظف الاستقبال فقط -->
+                        {% if current_user.role in ['مدير', 'موظف استقبال'] %}
                         <div class="mt-3 p-3 bg-light rounded">
                             <h6><strong>المعلومات المالية:</strong></h6>
                             <p class="mb-1"><strong>قيمة الطلبية:</strong> {{ "%.2f"|format(order.total_value) }} دينار ليبي</p>
@@ -103,6 +104,7 @@
                                 {% endif %}
                             </p>
                         </div>
+                        {% endif %}
                         
                         {% if current_user.role != 'موظف استقبال' %}
                         <p class="mt-2"><strong>إجمالي التكاليف:</strong> {{ order.total_price }} دينار ليبي</p>
