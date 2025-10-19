@@ -275,6 +275,7 @@
                                 <th>المبلغ</th>
                                 <th>الطريقة</th>
                                 <th>المستلم</th>
+                                <th>الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -291,12 +292,19 @@
                                 <td><strong>{{ "%.2f"|format(payment.amount) }} دينار ليبي</strong></td>
                                 <td>{{ payment.payment_method }}</td>
                                 <td>{{ payment.received_by }}</td>
+                                <td>
+                                    <a href="{{ url_for('payment_receipt_v2', order_id=order.id, payment_id=payment.id) }}" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       title="طباعة إيصال">
+                                        <i class="fas fa-print"></i> طباعة
+                                    </a>
+                                </td>
                             </tr>
                             {% endfor %}
                             <tr class="table-active">
                                 <td colspan="2"><strong>الإجمالي</strong></td>
                                 <td><strong>{{ "%.2f"|format(order.total_paid) }} دينار ليبي</strong></td>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                             </tr>
                         </tbody>
                     </table>

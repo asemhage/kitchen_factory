@@ -3236,6 +3236,270 @@ def generate_receipt_pdf(order, payment_amount=None, payment_type_ar='عربون
     buffer.seek(0)
     return buffer
 
+def number_to_arabic_words(number):
+    """تحويل الأرقام إلى كلمات عربية - مضاف 2025-10-19"""
+    ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة']
+    tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون']
+    hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة']
+    thousands = ['', 'ألف', 'ألفان', 'ثلاثة آلاف', 'أربعة آلاف', 'خمسة آلاف', 'ستة آلاف', 'سبعة آلاف', 'ثمانية آلاف', 'تسعة آلاف']
+    ten_thousands = ['', 'عشرة آلاف', 'عشرون ألف', 'ثلاثون ألف', 'أربعون ألف', 'خمسون ألف', 'ستون ألف', 'سبعون ألف', 'ثمانون ألف', 'تسعون ألف']
+    
+    if number == 0:
+        return 'صفر'
+    
+    if number < 10:
+        return ones[int(number)]
+    
+    if number < 100:
+        ten = int(number / 10)
+        one = int(number % 10)
+        if one == 0:
+            return tens[ten]
+        return tens[ten] + ' و' + ones[one]
+    
+    if number < 1000:
+        hundred = int(number / 100)
+        remainder = number % 100
+        if remainder == 0:
+            return hundreds[hundred]
+        return hundreds[hundred] + ' و' + number_to_arabic_words(remainder)
+    
+    if number < 10000:
+        thousand = int(number / 1000)
+        remainder = number % 1000
+        if remainder == 0:
+            return thousands[thousand]
+        return thousands[thousand] + ' و' + number_to_arabic_words(remainder)
+    
+    if number < 100000:
+        ten_thousand = int(number / 10000)
+        remainder = number % 10000
+        if remainder == 0:
+            return ten_thousands[ten_thousand]
+        return ten_thousands[ten_thousand] + ' و' + number_to_arabic_words(remainder)
+    
+    # للأرقام الأكبر، استخدم التنسيق العددي
+    return str(int(number))
+
+def generate_receipt_pdf_v2(order, payment, customer_name=None):
+    """إنشاء إيصال قبض PDF بالتصميم الجديد - مضاف 2025-10-19"""
+    buffer = io.BytesIO()
+    
+    # إنشاء مستند PDF
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    
+    # تسجيل الخط العربي
+    arabic_font = register_arabic_fonts()
+    if arabic_font:
+        font_name = arabic_font
+    else:
+        font_name = 'Helvetica'
+    
+    # ========== 1. شعار المؤسسة ==========
+    y_position = height - 2*cm
+    
+    # صندوق الشعار (placeholder)
+    p.setFillColorRGB(0.95, 0.95, 0.95)
+    p.rect(width/2 - 3*cm, y_position - 2*cm, 6*cm, 2*cm, fill=1, stroke=1)
+    p.setFillColorRGB(0, 0, 0)
+    
+    # نص داخل صندوق الشعار
+    p.setFont(font_name, 14)
+    logo_text = format_arabic_text("مصنع المطابخ")
+    p.drawCentredString(width/2, y_position - 0.8*cm, logo_text)
+    p.setFont(font_name, 10)
+    p.drawCentredString(width/2, y_position - 1.3*cm, "Kitchen Factory")
+    
+    y_position -= 3*cm
+    
+    # ========== 2. عنوان الإيصال ==========
+    p.setFont(font_name, 22)
+    title = format_arabic_text("إيصال قبض")
+    p.drawCentredString(width/2, y_position, title)
+    
+    y_position -= 1.5*cm
+    
+    # ========== 3. الشريط الأزرق ==========
+    # رسم المستطيل الأزرق
+    p.setFillColorRGB(0, 0.47, 1)  # أزرق
+    p.rect(2*cm, y_position - 2*cm, width - 4*cm, 2*cm, fill=1, stroke=0)
+    
+    # النصوص داخل الشريط الأزرق
+    p.setFillColorRGB(1, 1, 1)  # أبيض
+    p.setFont(font_name, 11)
+    
+    # رقم الطلب
+    order_label = format_arabic_text("رقم الطلب")
+    p.drawString(width - 3*cm, y_position - 0.7*cm, order_label)
+    p.setFont(font_name, 14)
+    p.drawString(width - 3*cm, y_position - 1.3*cm, str(order.id))
+    
+    # التاريخ
+    p.setFont(font_name, 11)
+    date_label = format_arabic_text("التاريخ")
+    p.drawCentredString(width/2, y_position - 0.7*cm, date_label)
+    p.setFont(font_name, 14)
+    date_str = payment.payment_date.strftime('%Y-%m-%d') if hasattr(payment.payment_date, 'strftime') else str(payment.payment_date)
+    p.drawCentredString(width/2, y_position - 1.3*cm, date_str)
+    
+    # تم الاستلام من
+    p.setFont(font_name, 11)
+    customer_label = format_arabic_text("تم الاستلام من")
+    p.drawString(3*cm, y_position - 0.7*cm, customer_label)
+    p.setFont(font_name, 14)
+    customer_display = customer_name or (order.customer.name if order.customer else "")
+    customer_formatted = format_arabic_text(customer_display)
+    p.drawString(3*cm, y_position - 1.3*cm, customer_formatted)
+    
+    p.setFillColorRGB(0, 0, 0)  # العودة للون الأسود
+    y_position -= 3*cm
+    
+    # ========== 4. تفاصيل الدفع ==========
+    # صندوق تفاصيل الدفع
+    p.setFillColorRGB(0.97, 0.97, 0.97)
+    p.rect(2*cm, y_position - 5*cm, width - 4*cm, 5*cm, fill=1, stroke=1)
+    p.setFillColorRGB(0, 0, 0)
+    
+    p.setFont(font_name, 12)
+    detail_y = y_position - 1*cm
+    
+    # مبلغ وقدره
+    amount_label = format_arabic_text("مبلغ وقدره:")
+    p.drawString(width - 5*cm, detail_y, amount_label)
+    
+    p.setFont(font_name, 16)
+    p.setFillColorRGB(0, 0.47, 1)
+    amount_text = f"{payment.amount:.2f} " + format_arabic_text("دينار ليبي")
+    p.drawString(3*cm, detail_y, amount_text)
+    p.setFillColorRGB(0, 0, 0)
+    
+    detail_y -= 1*cm
+    
+    # المبلغ بالحروف
+    p.setFont(font_name, 12)
+    words_label = format_arabic_text("المبلغ بالحروف:")
+    p.drawString(width - 5*cm, detail_y, words_label)
+    
+    p.setFont(font_name, 11)
+    amount_words = number_to_arabic_words(int(payment.amount))
+    amount_words_formatted = format_arabic_text(amount_words + " دينار ليبي")
+    p.drawString(3*cm, detail_y, amount_words_formatted)
+    
+    detail_y -= 1*cm
+    
+    # الغرض
+    p.setFont(font_name, 12)
+    purpose_label = format_arabic_text("الغرض:")
+    p.drawString(width - 5*cm, detail_y, purpose_label)
+    
+    p.setFont(font_name, 11)
+    purpose_text = format_arabic_text(f"{payment.payment_type} طلب مطبخ رقم {order.id}")
+    p.drawString(3*cm, detail_y, purpose_text)
+    
+    detail_y -= 1*cm
+    
+    # طريقة الدفع
+    p.setFont(font_name, 12)
+    method_label = format_arabic_text("طريقة الدفع:")
+    p.drawString(width - 5*cm, detail_y, method_label)
+    
+    # عرض طريقة الدفع مع تمييز المحدد
+    p.setFont(font_name, 11)
+    methods = ['نقداً', 'شيك', 'تحويل مالي']
+    method_x = 3*cm
+    for method in methods:
+        if payment.payment_method and method in payment.payment_method:
+            # طريقة الدفع المحددة
+            p.setFillColorRGB(0, 0.47, 1)
+            p.setFont(font_name, 12)
+            method_formatted = format_arabic_text(f"✓ {method}")
+            p.drawString(method_x, detail_y, method_formatted)
+            p.setFillColorRGB(0, 0, 0)
+            p.setFont(font_name, 11)
+        else:
+            # طريقة دفع غير محددة
+            p.setFillColorRGB(0.6, 0.6, 0.6)
+            method_formatted = format_arabic_text(method)
+            p.drawString(method_x, detail_y, method_formatted)
+            p.setFillColorRGB(0, 0, 0)
+        method_x += 4*cm
+    
+    y_position -= 6*cm
+    
+    # ========== 5. باقي القيمة ==========
+    # حساب باقي القيمة
+    total_paid = sum(p.amount for p in order.payments)
+    remaining = order.total_value - total_paid
+    
+    # صندوق باقي القيمة
+    p.setStrokeColorRGB(0.2, 0.2, 0.2)
+    p.setLineWidth(2)
+    p.rect(width/2 - 4*cm, y_position - 2.5*cm, 8*cm, 2.5*cm, fill=0, stroke=1)
+    
+    # عنوان
+    p.setFont(font_name, 14)
+    remaining_label = format_arabic_text("باقي القيمة")
+    p.drawCentredString(width/2, y_position - 1*cm, remaining_label)
+    
+    # المبلغ
+    p.setFont(font_name, 20)
+    p.setFillColorRGB(0, 0.47, 1)
+    p.drawString(width/2 - 1.5*cm, y_position - 1.9*cm, "LYD")
+    p.drawCentredString(width/2 + 1*cm, y_position - 1.9*cm, f"{remaining:.2f}")
+    p.setFont(font_name, 16)
+    p.drawString(width/2 + 2.8*cm, y_position - 1.9*cm, format_arabic_text("د."))
+    p.setFillColorRGB(0, 0, 0)
+    
+    y_position -= 4*cm
+    
+    # ========== 6. التوقيعات ==========
+    # صندوق التوقيعات
+    p.setFillColorRGB(0.97, 0.97, 0.97)
+    p.rect(2*cm, y_position - 3*cm, width - 4*cm, 3*cm, fill=1, stroke=1)
+    p.setFillColorRGB(0, 0, 0)
+    
+    # اسم المستلم
+    p.setFont(font_name, 12)
+    recipient_label = format_arabic_text("اسم المستلم")
+    p.drawString(width - 5*cm, y_position - 1*cm, recipient_label)
+    
+    p.setFont(font_name, 11)
+    recipient_name = format_arabic_text(payment.received_by if payment.received_by else current_user.username)
+    p.drawString(width - 5*cm, y_position - 1.8*cm, recipient_name)
+    
+    # خط التوقيع
+    p.line(width - 5*cm, y_position - 2*cm, width - 5*cm + 4*cm, y_position - 2*cm)
+    
+    # توقيع المستلم
+    p.setFont(font_name, 12)
+    signature_label = format_arabic_text("توقيع المستلم")
+    p.drawString(4*cm, y_position - 1*cm, signature_label)
+    
+    # خط التوقيع
+    p.line(4*cm, y_position - 2*cm, 4*cm + 4*cm, y_position - 2*cm)
+    
+    # ========== 7. رقم الإيصال والملاحظات ==========
+    y_position -= 4*cm
+    
+    # رقم الإيصال
+    if payment.receipt_number:
+        p.setFont(font_name, 9)
+        receipt_label = format_arabic_text("رقم الإيصال:")
+        p.drawString(2*cm, y_position, f"{receipt_label} {payment.receipt_number}")
+    
+    # ملاحظة
+    p.setFont(font_name, 8)
+    note = format_arabic_text("هذا إيصال مُنشأ بواسطة الكمبيوتر ولا يحتاج لتوقيع")
+    p.drawCentredString(width/2, y_position - 0.5*cm, note)
+    
+    # إنهاء المستند
+    p.showPage()
+    p.save()
+    
+    buffer.seek(0)
+    return buffer
+
 # مسار جديد لموظف الاستقبال لاستلام العربون وإصدار إيصال
 @app.route('/order/<int:order_id>/receive-deposit', methods=['POST'])
 @login_required
@@ -3642,6 +3906,44 @@ def add_payment(order_id):
     except Exception as e:
         db.session.rollback()
         flash(f'حدث خطأ في إضافة الدفعة: {str(e)}', 'danger')
+        return redirect(url_for('order_detail', order_id=order_id))
+
+@app.route('/order/<int:order_id>/payment/<int:payment_id>/receipt')
+@login_required
+def payment_receipt_v2(order_id, payment_id):
+    """طباعة إيصال دفعة محددة بالتصميم الجديد - مضاف 2025-10-19"""
+    try:
+        # جلب الطلب والدفعة
+        order = db.get_or_404(Order, order_id)
+        payment = db.get_or_404(Payment, payment_id)
+        
+        # التحقق من أن الدفعة تخص الطلب
+        if payment.order_id != order.id:
+            flash('الدفعة لا تخص هذا الطلب', 'danger')
+            return redirect(url_for('order_detail', order_id=order_id))
+        
+        # التحقق من الصلاحيات
+        if current_user.role not in ['مدير', 'موظف استقبال', 'مسؤول إنتاج', 'مسؤول مخزن', 'مسؤول العمليات']:
+            flash('ليس لديك صلاحية لعرض الإيصالات', 'danger')
+            return redirect(url_for('order_detail', order_id=order_id))
+        
+        # إنشاء PDF بالتصميم الجديد
+        receipt_pdf = generate_receipt_pdf_v2(
+            order=order,
+            payment=payment,
+            customer_name=order.customer.name if order.customer else None
+        )
+        
+        # إرسال الملف
+        return send_file(
+            receipt_pdf,
+            as_attachment=True,
+            download_name=f'receipt_{order.id}_{payment.id}_{datetime.now().strftime("%Y%m%d")}.pdf',
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        flash(f'حدث خطأ في إنشاء الإيصال: {str(e)}', 'danger')
         return redirect(url_for('order_detail', order_id=order_id))
 
 @app.route('/order/<int:order_id>/costs')
