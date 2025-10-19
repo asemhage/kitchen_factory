@@ -7240,6 +7240,62 @@ if __name__ == '__main__':
         
         return render_template('invoice_detail.html', invoice=invoice, stats=stats)
     
+    @app.route('/invoice/<int:invoice_id>/cancel', methods=['POST'])
+    @login_required
+    def cancel_invoice(invoice_id):
+        """إلغاء فاتورة مورد - النظام الجديد - مضاف 2025-10-19"""
+        if current_user.role not in ['مدير', 'مسؤول مخزن']:
+            flash('ليس لديك صلاحية لإلغاء الفواتير', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        invoice = db.get_or_404(SupplierInvoice, invoice_id)
+        
+        # التحقق من إمكانية الإلغاء
+        if not invoice.is_active:
+            flash('هذه الفاتورة ملغاة بالفعل', 'warning')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        if invoice.paid_amount > 0:
+            flash('لا يمكن إلغاء فاتورة تم دفع جزء منها أو كلها', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+        
+        try:
+            cancellation_reason = request.form.get('cancellation_reason', '')
+            
+            # إلغاء الفاتورة (soft delete)
+            invoice.is_active = False
+            invoice.notes = f"ملغاة - السبب: {cancellation_reason}\n{invoice.notes or ''}"
+            
+            # تحديث دين المورد
+            if invoice.supplier.debt:
+                invoice.supplier.debt.total_debt -= invoice.debt_amount
+                invoice.supplier.debt.remaining_debt = invoice.supplier.debt.total_debt - invoice.supplier.debt.paid_amount
+            
+            # تسجيل في سجل التدقيق
+            audit_log = AuditLog(
+                table_name='supplier_invoices',
+                record_id=invoice.id,
+                action='cancel',
+                field_name='is_active',
+                old_value='True',
+                new_value='False',
+                reason=f'إلغاء فاتورة: {cancellation_reason}',
+                notes=cancellation_reason,
+                showroom_id=invoice.showroom_id,
+                user_name=current_user.username
+            )
+            db.session.add(audit_log)
+            
+            db.session.commit()
+            
+            flash(f'تم إلغاء الفاتورة {invoice.invoice_number} بنجاح', 'success')
+            return redirect(url_for('invoices_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'حدث خطأ أثناء إلغاء الفاتورة: {str(e)}', 'danger')
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+    
     @app.route('/invoice/<int:invoice_id>/add_payment', methods=['GET', 'POST'])
     @login_required
     def add_invoice_payment(invoice_id):
