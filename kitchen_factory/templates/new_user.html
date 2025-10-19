@@ -51,8 +51,8 @@
 
             <div class="mb-3" id="showroom_field">
                 <label for="showroom_id" class="form-label">
-                    الصالة <span class="text-danger">*</span>
-                    <small class="text-muted">(غير مطلوب للمديرين)</small>
+                    الصالة 
+                    <span class="text-danger" id="showroom_required">*</span>
                 </label>
                 <select class="form-select" id="showroom_id" name="showroom_id">
                     <option value="">-- اختر الصالة --</option>
@@ -60,9 +60,12 @@
                     <option value="{{ showroom.id }}">{{ showroom.name }} ({{ showroom.code }})</option>
                     {% endfor %}
                 </select>
-                <div class="form-text">
-                    <i class="fas fa-info-circle"></i> 
-                    المديرون يمكنهم الوصول لجميع الصالات، الموظفون الآخرون مرتبطون بصالة واحدة فقط
+                <div class="form-text" id="showroom_hint">
+                    اختر الصالة التي سيكون المستخدم مسؤولاً عنها
+                </div>
+                <div class="form-text text-info" id="manager_hint" style="display: none;">
+                    <i class="fas fa-info-circle"></i>
+                    هذا الدور لديه صلاحية الوصول لجميع الصالات - اختيار الصالة اختياري
                 </div>
             </div>
 
@@ -142,18 +145,30 @@
 {% block scripts %}
 <script>
     $(document).ready(function() {
+        // الأدوار التي لا ترتبط بصالة محددة
+        const managerRoles = ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات'];
+        
         // إظهار/إخفاء حقل الصالة حسب الدور
         function toggleShowroomField() {
             const role = $('#role').val();
-            const showroomField = $('#showroom_field');
             const showroomSelect = $('#showroom_id');
+            const showroomRequired = $('#showroom_required');
+            const showroomHint = $('#showroom_hint');
+            const managerHint = $('#manager_hint');
             
-            if (role === 'مدير') {
-                showroomField.hide();
+            if (managerRoles.includes(role)) {
+                // أدوار إدارية - الصالة اختيارية
+                showroomSelect.val('');
                 showroomSelect.prop('required', false);
+                showroomRequired.hide();
+                showroomHint.hide();
+                managerHint.show();
             } else {
-                showroomField.show();
+                // موظف استقبال - الصالة إلزامية
                 showroomSelect.prop('required', true);
+                showroomRequired.show();
+                showroomHint.show();
+                managerHint.hide();
             }
         }
         
@@ -173,12 +188,12 @@
                 return false;
             }
             
-            // التحقق من الصالة للموظفين
+            // التحقق من الصالة للموظفين (موظف استقبال فقط)
             const role = $('#role').val();
             const showroom = $('#showroom_id').val();
             
-            if (role !== 'مدير' && !showroom) {
-                alert('يجب اختيار الصالة للموظفين');
+            if (!managerRoles.includes(role) && !showroom) {
+                alert('يجب اختيار الصالة لموظف الاستقبال');
                 return false;
             }
 

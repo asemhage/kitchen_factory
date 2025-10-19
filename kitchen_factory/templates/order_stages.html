@@ -145,8 +145,58 @@
                                                     <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول (اختياري)</label>
                                                     <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}">
                                                 </div>
+                                                {% elif stage.stage_name == 'حصر المتطلبات' %}
+                                                <!-- مرحلة حصر المتطلبات: إضافة حقل الأمتار -->
+                                                <div class="card mb-3 bg-light">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">
+                                                            <i class="fas fa-ruler"></i>
+                                                            عدد الأمتار
+                                                        </h6>
+                                                        
+                                                        <div class="alert alert-info alert-sm mb-2">
+                                                            <strong>القيمة الحالية:</strong> {{ order.meters or 1 }} متر
+                                                        </div>
+                                                        
+                                                        {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
+                                                        <div class="mb-3">
+                                                            <label for="meters_{{ stage.id }}" class="form-label">
+                                                                عدد الأمتار الدقيق <span class="text-danger">*</span>
+                                                            </label>
+                                                            <input type="number" 
+                                                                   class="form-control" 
+                                                                   id="meters_{{ stage.id }}" 
+                                                                   name="meters" 
+                                                                   min="0.1" 
+                                                                   step="0.1" 
+                                                                   value="{{ order.meters or 1 }}" 
+                                                                   required>
+                                                            <div class="form-text">
+                                                                أدخل العدد الدقيق لأمتار الطلبية
+                                                            </div>
+                                                        </div>
+                                                        {% else %}
+                                                        <div class="mb-3">
+                                                            <label class="form-label">عدد الأمتار (للقراءة فقط)</label>
+                                                            <input type="text" 
+                                                                   class="form-control" 
+                                                                   value="{{ order.meters or 1 }} متر" 
+                                                                   disabled>
+                                                            <div class="form-text text-muted">
+                                                                <i class="fas fa-lock"></i>
+                                                                لا يمكنك تعديل عدد الأمتار (صلاحية مسؤول الإنتاج/العمليات فقط)
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول</label>
+                                                    <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
+                                                </div>
                                                 {% else %}
-                                                <!-- المراحل العادية (غير التصنيع والتركيب) -->
+                                                <!-- المراحل العادية الأخرى -->
                                                 <div class="mb-3">
                                                     <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول</label>
                                                     <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>

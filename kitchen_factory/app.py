@@ -2720,7 +2720,8 @@ def new_order():
         customer_address = request.form.get('customer_address')
         delivery_date = request.form.get('delivery_date')
         deadline = request.form.get('deadline')
-        meters = int(request.form.get('meters'))
+        # meters: القيمة الافتراضية = 1 (سيتم تحديثها في مرحلة حصر المتطلبات)
+        meters = 1
         total_value = float(request.form.get('total_value', 0))
 
         # إنشاء عميل جديد أو تحديد عميل موجود
@@ -2892,8 +2893,20 @@ def update_order_stage(order_id, stage_id):
             stage.start_date = datetime.now().date()
             stage.progress = 50  # نسبة متوسطة للمراحل المبدوءة
             
+            # معالجة خاصة لمرحلة حصر المتطلبات: تحديث الأمتار - مضاف 2025-10-19
+            if stage.stage_name == 'حصر المتطلبات':
+                # فقط الأدوار التالية يمكنها تحديث الأمتار
+                if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
+                    meters = request.form.get('meters')
+                    if meters:
+                        old_meters = order.meters
+                        order.meters = float(meters)
+                        flash(f'تم تحديث عدد الأمتار من {old_meters} إلى {meters}', 'info')
+                
+                flash(f'تم بدء مرحلة {stage.stage_name}', 'success')
+            
             # معالجة خاصة لمراحل التصنيع والتركيب - مضاف 2025-10-18
-            if stage.stage_name in ['التصنيع', 'التركيب']:
+            elif stage.stage_name in ['التصنيع', 'التركيب']:
                 # الحصول على بيانات الفني والسعر
                 technician_id = request.form.get('technician_id')
                 rate = request.form.get('rate')  # السعر قابل للتعديل
@@ -3730,7 +3743,7 @@ def archived_orders():
 @login_required
 def materials():
     """عرض قائمة المواد - المخزن موحد لجميع الصالات"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى صفحة المواد', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -3746,7 +3759,7 @@ def materials():
 @login_required
 def new_material():
     """إضافة مادة جديدة - مسؤول المخزن ومسؤول الإنتاج"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لإضافة مادة جديدة', 'danger')
         return redirect(url_for('materials'))
 
@@ -3801,7 +3814,7 @@ def new_material():
 @login_required
 def edit_material(material_id):
     """تعديل مادة - مسؤول المخزن فقط"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لتعديل المادة', 'danger')
         return redirect(url_for('materials'))
     
@@ -3861,7 +3874,7 @@ def delete_material(material_id):
 def add_stock():
     """إضافة كمية لمادة - مسؤول المخزن فقط"""
     try:
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             return jsonify({'success': False, 'message': 'ليس لديك صلاحية لإضافة مخزون'})
         
         material_id = request.form.get('material_id')
@@ -3904,7 +3917,7 @@ def add_stock():
 @login_required
 def add_material_stock(material_id):
     """إضافة كمية لمادة محددة - مسؤول المخزن فقط"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لإضافة مخزون', 'danger')
         return redirect(url_for('materials'))
 
@@ -3942,7 +3955,7 @@ def new_user():
         username = request.form.get('username')
         password = request.form.get('password')
         role = request.form.get('role')
-        showroom_id = request.form.get('showroom_id')  # يمكن أن يكون None للمديرين
+        showroom_id = request.form.get('showroom_id')
 
         # التحقق من عدم وجود مستخدم بنفس الاسم
         if User.query.filter_by(username=username).first():
@@ -3950,17 +3963,28 @@ def new_user():
             showrooms = get_all_showrooms()
             return render_template('new_user.html', showrooms=showrooms)
 
-        # إذا كان الدور "مدير"، لا نحتاج showroom_id (يمكن أن يكون None)
-        if role != 'مدير' and not showroom_id:
-            flash('يجب تحديد الصالة لموظفي الاستقبال', 'danger')
-            showrooms = get_all_showrooms()
-            return render_template('new_user.html', showrooms=showrooms)
+        # الأدوار التي لا ترتبط بصالة محددة
+        manager_roles = ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات']
+        
+        if role in manager_roles:
+            # الأدوار الإدارية: showroom_id اختياري (يمكن أن يكون None)
+            if showroom_id and showroom_id.strip():
+                showroom_id = int(showroom_id)
+            else:
+                showroom_id = None
+        else:
+            # موظف استقبال: showroom_id إلزامي
+            if not showroom_id:
+                flash('يجب اختيار صالة لموظف الاستقبال', 'warning')
+                showrooms = get_all_showrooms()
+                return render_template('new_user.html', showrooms=showrooms)
+            showroom_id = int(showroom_id)
 
         user = User(
             username=username,
             password=generate_password_hash(password),
             role=role,
-            showroom_id=int(showroom_id) if showroom_id else None
+            showroom_id=showroom_id
         )
         db.session.add(user)
         db.session.commit()
@@ -3993,15 +4017,26 @@ def edit_user(user_id):
             showrooms = get_all_showrooms()
             return render_template('edit_user.html', user=user, showrooms=showrooms)
 
-        # التحقق من الصالة للموظفين
-        if role != 'مدير' and not showroom_id:
-            flash('يجب تحديد الصالة لموظفي الاستقبال', 'danger')
-            showrooms = get_all_showrooms()
-            return render_template('edit_user.html', user=user, showrooms=showrooms)
+        # الأدوار التي لا ترتبط بصالة محددة
+        manager_roles = ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات']
+        
+        if role in manager_roles:
+            # الأدوار الإدارية: showroom_id اختياري (يمكن أن يكون None)
+            if showroom_id and showroom_id.strip():
+                showroom_id = int(showroom_id)
+            else:
+                showroom_id = None
+        else:
+            # موظف استقبال: showroom_id إلزامي
+            if not showroom_id:
+                flash('يجب اختيار صالة لموظف الاستقبال', 'warning')
+                showrooms = get_all_showrooms()
+                return render_template('edit_user.html', user=user, showrooms=showrooms)
+            showroom_id = int(showroom_id)
 
         user.username = username
         user.role = role
-        user.showroom_id = int(showroom_id) if showroom_id else None
+        user.showroom_id = showroom_id
 
         # تحديث كلمة المرور فقط إذا تم إدخال كلمة مرور جديدة
         if password:
@@ -4407,7 +4442,7 @@ def overdue_tasks_report():
 @login_required
 def suppliers_debts_report():
     """تقرير ديون الموردين - إجمالي المديونية لكل مورد"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -4451,7 +4486,7 @@ def suppliers_debts_report():
 @login_required
 def overdue_invoices_report():
     """تقرير الفواتير المتأخرة - فواتير تجاوزت تاريخ الاستحقاق"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -4495,7 +4530,7 @@ def overdue_invoices_report():
 @login_required
 def suppliers_performance_report():
     """تقرير أداء الموردين - إحصائيات الشراء والدفع"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -4652,7 +4687,7 @@ def inventory_turnover_report():
     """تقرير دوران المخزون - معدل دوران المواد والمواد السريعة/البطيئة الحركة"""
     
     # التحقق من الصلاحيات
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى هذا التقرير', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -4881,7 +4916,7 @@ def order_materials(order_id):
     """صفحة إدارة المواد للطلبية - النظام المحدّث مع تتبع النقص"""
     order = db.get_or_404(Order, order_id)
 
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج', 'مسؤول العمليات']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول إلى صفحة مواد الطلب', 'danger')
         return redirect(url_for('order_detail', order_id=order.id))
 
@@ -5003,7 +5038,7 @@ def delete_order_material(material_id):
     order_material = db.get_or_404(OrderMaterial, material_id)
     order_id = order_material.order_id
 
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لحذف مادة من الطلب', 'danger')
         return redirect(url_for('order_materials', order_id=order_id))
 
@@ -5033,7 +5068,7 @@ def update_order_material_quantity(material_id):
     """تعديل كمية مادة في الطلبية"""
     order_material = db.get_or_404(OrderMaterial, material_id)
     
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لتعديل المادة', 'danger')
         return redirect(url_for('order_materials', order_id=order_material.order_id))
     
@@ -5087,7 +5122,7 @@ def complete_material_shortage(material_id):
     """إكمال نقص مادة عند توفرها"""
     order_material = db.get_or_404(OrderMaterial, material_id)
     
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لإكمال النقص', 'danger')
         return redirect(url_for('order_materials', order_id=order_material.order_id))
     
@@ -5146,7 +5181,7 @@ def complete_material_shortage(material_id):
 @login_required
 def shortage_materials_list():
     """قائمة بجميع المواد الناقصة في الطلبيات"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية للوصول', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -6243,7 +6278,7 @@ if __name__ == '__main__':
     @login_required
     def suppliers_list():
         """عرض قائمة الموردين - متاح للمديرين ومسؤولي المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية للوصول إلى صفحة الموردين', 'danger')
             return redirect(url_for('dashboard'))
         
@@ -6261,7 +6296,7 @@ if __name__ == '__main__':
     @login_required
     def new_supplier():
         """إضافة مورد جديد - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية لإضافة مورد جديد', 'danger')
             return redirect(url_for('suppliers_list'))
         
@@ -6322,7 +6357,7 @@ if __name__ == '__main__':
     @login_required
     def supplier_detail(supplier_id):
         """عرض تفاصيل مورد"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
             return redirect(url_for('dashboard'))
         
@@ -6348,7 +6383,7 @@ if __name__ == '__main__':
     @login_required
     def edit_supplier(supplier_id):
         """تعديل بيانات مورد - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية لتعديل المورد', 'danger')
             return redirect(url_for('dashboard'))
         
@@ -6431,7 +6466,7 @@ if __name__ == '__main__':
     @login_required
     def invoices_list():
         """عرض قائمة فواتير الشراء - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية للوصول إلى صفحة الفواتير', 'danger')
             return redirect(url_for('dashboard'))
         
@@ -6464,7 +6499,7 @@ if __name__ == '__main__':
     @login_required
     def new_invoice():
         """إضافة فاتورة شراء جديدة - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية لإضافة فاتورة', 'danger')
             return redirect(url_for('invoices_list'))
         
@@ -6622,7 +6657,7 @@ if __name__ == '__main__':
     @login_required
     def invoice_detail(invoice_id):
         """عرض تفاصيل فاتورة"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية للوصول إلى هذه الصفحة', 'danger')
             return redirect(url_for('dashboard'))
         
@@ -6646,7 +6681,7 @@ if __name__ == '__main__':
     @login_required
     def edit_invoice(invoice_id):
         """تعديل فاتورة شراء - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية لتعديل الفاتورة', 'danger')
             return redirect(url_for('invoices_list'))
         
@@ -6815,7 +6850,7 @@ if __name__ == '__main__':
     @login_required
     def add_invoice_payment(invoice_id):
         """إضافة دفعة لفاتورة - مسؤول المخزن فقط"""
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول إنتاج']:
+        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
             flash('ليس لديك صلاحية لإضافة دفعة', 'danger')
             return redirect(url_for('dashboard'))
         

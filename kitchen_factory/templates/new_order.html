@@ -51,18 +51,19 @@
             {% endif %}
 
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label for="delivery_date" class="form-label">تاريخ التسليم</label>
                     <input type="date" class="form-control" id="delivery_date" name="delivery_date">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label for="deadline" class="form-label">الموعد النهائي</label>
                     <input type="date" class="form-control" id="deadline" name="deadline">
                 </div>
-                <div class="col-md-4">
-                    <label for="meters" class="form-label">عدد الأمتار</label>
-                    <input type="number" class="form-control" id="meters" name="meters" min="1" required>
-                </div>
+            </div>
+            
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle"></i>
+                <strong>ملاحظة:</strong> سيتم إدخال عدد الأمتار الدقيق في مرحلة "حصر متطلبات الطلب"
             </div>
             
             <div class="mb-3">
