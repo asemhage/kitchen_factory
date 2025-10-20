@@ -35,7 +35,7 @@
             </button>
             {% endif %}
             {% endif %}
-            {% if current_user.role in ['مدير', 'مسؤول إنتاج'] %}
+            {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
             <a href="{{ url_for('order_stages', order_id=order.id) }}" class="btn btn-sm btn-primary">
                 <i class="fas fa-tasks"></i> المراحل
             </a>
