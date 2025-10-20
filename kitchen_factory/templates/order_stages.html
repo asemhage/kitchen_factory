@@ -323,6 +323,39 @@
                 {% endif %}
     </div>
 </div>
+
+<!-- شريط أزرار سريع للمراحل -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">إجراءات سريعة للمراحل</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for stage in order.stages %}
+                    {% if stage.stage_type == 'طلب' %}
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark">{{ stage.stage_name }}</span>
+                        {% if stage.progress == 0 %}
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#startStageModal{{ stage.id }}">
+                            <i class="fas fa-play"></i> بدء
+                        </button>
+                        {% elif stage.progress < 100 %}
+                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#completeStageModal{{ stage.id }}">
+                            <i class="fas fa-check"></i> إكمال
+                        </button>
+                        {% else %}
+                        <span class="text-success"><i class="fas fa-check-circle"></i> مكتملة</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
