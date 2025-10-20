@@ -136,7 +136,20 @@
                                     {% endif %}
                                 </td>
                             </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted">لم يتم تحديد مراحل الطلب بعد</p>
+                {% endif %}
+            </div>
+        </div>
 
+<!-- Modals لجميع المراحل -->
+{% for stage in order.stages %}
+{% if stage.stage_type == 'طلب' %}
                             <!-- Modal بدء المرحلة -->
                             <div class="modal fade" id="startStageModal{{ stage.id }}" tabindex="-1" aria-labelledby="startStageModalLabel{{ stage.id }}" aria-hidden="true">
                                 <div class="modal-dialog modal-lg">
@@ -285,50 +298,42 @@
                                 </div>
                             </div>
 
-                            <!-- Modal إكمال المرحلة -->
-                            <div class="modal fade" id="completeStageModal{{ stage.id }}" tabindex="-1" aria-labelledby="completeStageModalLabel{{ stage.id }}" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="completeStageModalLabel{{ stage.id }}">إكمال مرحلة {{ stage.stage_name }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <form method="POST" action="{{ url_for('update_order_stage', order_id=order.id, stage_id=stage.id) }}">
-                                            <input type="hidden" name="action" value="complete">
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label for="assigned_to_complete_{{ stage.id }}" class="form-label">المسؤول</label>
-                                                    <input type="text" class="form-control" id="assigned_to_complete_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="notes_complete_{{ stage.id }}" class="form-label">ملاحظات الإكمال</label>
-                                                    <textarea class="form-control" id="notes_complete_{{ stage.id }}" name="notes" rows="3" placeholder="أدخل ملاحظات حول إكمال المرحلة...">{{ stage.notes or '' }}</textarea>
-                                                </div>
-                                                <div class="alert alert-info">
-                                                    <i class="fas fa-info-circle"></i>
-                                                    سيتم تسجيل تاريخ الإكمال تلقائياً وبدء المرحلة التالية إن وجدت.
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                                                <button type="submit" class="btn btn-warning">
-                                                    <i class="fas fa-check"></i> إكمال المرحلة
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-center text-muted">لم يتم تحديد مراحل الطلب بعد</p>
-                {% endif %}
+<!-- Modal إكمال المرحلة -->
+<div class="modal fade" id="completeStageModal{{ stage.id }}" tabindex="-1" aria-labelledby="completeStageModalLabel{{ stage.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="completeStageModalLabel{{ stage.id }}">إكمال مرحلة {{ stage.stage_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form method="POST" action="{{ url_for('update_order_stage', order_id=order.id, stage_id=stage.id) }}">
+                <input type="hidden" name="action" value="complete">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="assigned_to_complete_{{ stage.id }}" class="form-label">المسؤول</label>
+                        <input type="text" class="form-control" id="assigned_to_complete_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes_complete_{{ stage.id }}" class="form-label">ملاحظات الإكمال</label>
+                        <textarea class="form-control" id="notes_complete_{{ stage.id }}" name="notes" rows="3" placeholder="أدخل ملاحظات حول إكمال المرحلة...">{{ stage.notes or '' }}</textarea>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        سيتم تسجيل تاريخ الإكمال تلقائياً وبدء المرحلة التالية إن وجدت.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-check"></i> إكمال المرحلة
+                    </button>
+                </div>
+            </form>
         </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 {% endblock %}
 
 {% block scripts %}
