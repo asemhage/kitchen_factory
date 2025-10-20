@@ -79,8 +79,8 @@
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="mb-0">مراحل الطلب</h5>
-    </div>
-    <div class="card-body">
+            </div>
+            <div class="card-body">
                 {% if order.stages %}
                 <div class="table-responsive">
                     <table class="table table-bordered">
@@ -88,8 +88,6 @@
                             <tr>
                                 <th>المرحلة</th>
                                 <th>الحالة</th>
-                                <th>تاريخ البدء</th>
-                                <th>تاريخ الانتهاء</th>
                                 <th>المسؤول</th>
                                 <th>الملاحظات</th>
                                 <th>الإجراءات</th>
@@ -109,10 +107,18 @@
                                     <span class="badge bg-warning">جاري العمل</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ stage.start_date or 'لم يحدد بعد' }}</td>
-                                <td>{{ stage.end_date or 'لم يحدد بعد' }}</td>
                                 <td>{{ stage.assigned_to or 'لم يحدد بعد' }}</td>
-                                <td>{{ stage.notes or '-' }}</td>
+                                <td>
+                                    {% if stage.stage_name in ['تصميم', 'استلام العربون'] %}
+                                        {% if current_user.role in ['مدير', 'موظف استقبال'] %}
+                                            {{ stage.notes or '-' }}
+                                        {% else %}
+                                            <span class="text-muted">غير متاح</span>
+                                        {% endif %}
+                                    {% else %}
+                                        {{ stage.notes or '-' }}
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if stage.progress == 0 %}
                                     <!-- أزرار البدء -->
@@ -321,8 +327,8 @@
                 {% else %}
                 <p class="text-center text-muted">لم يتم تحديد مراحل الطلب بعد</p>
                 {% endif %}
-    </div>
-</div>
+            </div>
+        </div>
 {% endblock %}
 
 {% block scripts %}
