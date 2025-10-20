@@ -2933,7 +2933,7 @@ def order_stages(order_id):
     
     # تحسين: جلب الفنيين النشطين فقط مع الحقول المطلوبة
     technicians = Technician.query.filter_by(status='نشط').with_entities(
-        Technician.id, Technician.name, Technician.specialty, 
+        Technician.id, Technician.name, Technician.specialization, 
         Technician.manufacturing_rate, Technician.installation_rate
     ).all()
     
