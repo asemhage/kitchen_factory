@@ -15,13 +15,72 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
+<!-- بطاقات البيانات - معلومات الطلب والتكاليف -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">مراحل الطلب</h5>
+                <h5 class="mb-0">معلومات الطلب</h5>
             </div>
             <div class="card-body">
+                <p><strong>العميل:</strong> {{ order.customer.name }}</p>
+                <p><strong>تاريخ الطلب:</strong> {{ order.order_date }}</p>
+                <p><strong>الموعد النهائي:</strong> {{ order.deadline or 'لم يحدد' }}</p>
+                <p><strong>الحالة:</strong> 
+                    {% if order.status == 'مفتوح' %}
+                    <span class="badge bg-secondary">{{ order.status }}</span>
+                    {% elif order.status == 'قيد التنفيذ' %}
+                    <span class="badge bg-primary">{{ order.status }}</span>
+                    {% elif order.status == 'مكتمل' %}
+                    <span class="badge bg-success">{{ order.status }}</span>
+                    {% elif order.status == 'مسلّم' %}
+                    <span class="badge bg-info">{{ order.status }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>عدد الأمتار:</strong> {{ order.meters }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">التكاليف</h5>
+                <a href="{{ url_for('order_costs', order_id=order.id) }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-money-bill-wave"></i> إدارة التكاليف
+                </a>
+            </div>
+            <div class="card-body">
+                <p><strong>إجمالي التكاليف:</strong> {{ order.total_price }} دينار ليبي</p>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>النوع</th>
+                                <th>المبلغ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cost in order.order_costs %}
+                            <tr>
+                                <td>{{ cost.cost_type }}</td>
+                                <td>{{ cost.amount }} دينار ليبي</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- جدول المراحل -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">مراحل الطلب</h5>
+    </div>
+    <div class="card-body">
                 {% if order.stages %}
                 <div class="table-responsive">
                     <table class="table table-bordered">
@@ -262,63 +321,6 @@
                 {% else %}
                 <p class="text-center text-muted">لم يتم تحديد مراحل الطلب بعد</p>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">معلومات الطلب</h5>
-            </div>
-            <div class="card-body">
-                <p><strong>العميل:</strong> {{ order.customer.name }}</p>
-                <p><strong>تاريخ الطلب:</strong> {{ order.order_date }}</p>
-                <p><strong>الموعد النهائي:</strong> {{ order.deadline or 'لم يحدد' }}</p>
-                <p><strong>الحالة:</strong> 
-                    {% if order.status == 'مفتوح' %}
-                    <span class="badge bg-secondary">{{ order.status }}</span>
-                    {% elif order.status == 'قيد التنفيذ' %}
-                    <span class="badge bg-primary">{{ order.status }}</span>
-                    {% elif order.status == 'مكتمل' %}
-                    <span class="badge bg-success">{{ order.status }}</span>
-                    {% elif order.status == 'مسلّم' %}
-                    <span class="badge bg-info">{{ order.status }}</span>
-                    {% endif %}
-                </p>
-                <p><strong>عدد الأمتار:</strong> {{ order.meters }}</p>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">التكاليف</h5>
-                <a href="{{ url_for('order_costs', order_id=order.id) }}" class="btn btn-sm btn-primary">
-                    <i class="fas fa-money-bill-wave"></i> إدارة التكاليف
-                </a>
-            </div>
-            <div class="card-body">
-                <p><strong>إجمالي التكاليف:</strong> {{ order.total_price }} دينار ليبي</p>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>النوع</th>
-                                <th>المبلغ</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for cost in order.order_costs %}
-                            <tr>
-                                <td>{{ cost.cost_type }}</td>
-                                <td>{{ cost.amount }} دينار ليبي</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
