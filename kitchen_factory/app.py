@@ -2922,24 +2922,8 @@ def order_stages(order_id):
         flash('ليس لديك صلاحية لتعديل مراحل الطلب', 'danger')
         return redirect(url_for('order_detail', order_id=order_id))
     
-    # تحسين الاستعلام: جلب البيانات الأساسية فقط
     order = db.get_or_404(Order, order_id)
-    
-    # تحسين: جلب المراحل مع الحقول المطلوبة فقط (بدون start_date, end_date)
-    # هذا سيقلل من حجم البيانات المحملة
-    order_stages = db.session.query(Stage).filter_by(order_id=order_id, stage_type='طلب').with_entities(
-        Stage.id, Stage.stage_name, Stage.progress, Stage.assigned_to, Stage.notes
-    ).all()
-    
-    # تحسين: جلب الفنيين النشطين فقط مع الحقول المطلوبة
-    technicians = Technician.query.filter_by(status='نشط').with_entities(
-        Technician.id, Technician.name, Technician.specialization, 
-        Technician.manufacturing_rate, Technician.installation_rate
-    ).all()
-    
-    # إضافة المراحل المحسنة للطلب
-    order.stages = order_stages
-    
+    technicians = Technician.query.filter_by(status='نشط').all()
     return render_template('order_stages.html', order=order, technicians=technicians)
 
 @app.route('/order/<int:order_id>/update-stage/<int:stage_id>', methods=['POST'])
