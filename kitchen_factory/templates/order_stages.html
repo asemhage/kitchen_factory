@@ -98,7 +98,7 @@
                                                             data-order-meters="{{ order.meters }}"
                                                             required>
                                                         <option value="">-- اختر الفني --</option>
-                                                        {% for tech in Technician.query.filter_by(is_active=True).all() %}
+                                                        {% for tech in technicians %}
                                                         <option value="{{ tech.id }}" 
                                                                 data-manufacturing-rate="{{ tech.manufacturing_rate or 0 }}"
                                                                 data-installation-rate="{{ tech.installation_rate or 0 }}">

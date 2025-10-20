@@ -2923,7 +2923,8 @@ def order_stages(order_id):
         return redirect(url_for('order_detail', order_id=order_id))
     
     order = db.get_or_404(Order, order_id)
-    return render_template('order_stages.html', order=order)
+    technicians = Technician.query.filter_by(is_active=True).all()
+    return render_template('order_stages.html', order=order, technicians=technicians)
 
 @app.route('/order/<int:order_id>/update-stage/<int:stage_id>', methods=['POST'])
 @login_required
