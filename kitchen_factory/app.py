@@ -2923,6 +2923,25 @@ def order_stages(order_id):
         return redirect(url_for('order_detail', order_id=order_id))
     
     order = db.get_or_404(Order, order_id)
+    
+    # تطبيق نفس الفلاتر والترتيب من order_detail
+    stage_query = get_scoped_query(Stage, current_user)
+    # ترتيب المراحل حسب التسلسل المنطقي
+    stage_order = {
+        'تصميم': 1,
+        'استلام العربون': 2,
+        'حصر المتطلبات': 3,
+        'التصنيع': 4,
+        'التركيب': 5,
+        'تسليم': 6,
+        'التسليم النهائي': 6
+    }
+    order_stages_raw = stage_query.filter_by(order_id=order_id, stage_type='طلب').all()
+    order_stages = sorted(order_stages_raw, key=lambda x: stage_order.get(x.stage_name, 999))
+    
+    # إضافة المراحل المرتبة للطلب
+    order.stages = order_stages
+    
     technicians = Technician.query.filter_by(status='نشط').all()
     return render_template('order_stages.html', order=order, technicians=technicians)
 
