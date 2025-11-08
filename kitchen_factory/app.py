@@ -4928,7 +4928,7 @@ def technician_dues(technician_id):
 @login_required
 def technician_reports():
     """تقرير أداء ومساهمة الفنيين"""
-    if current_user.role not in ['مدير', 'مسؤول إنتاج']:
+    if current_user.role not in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
         flash('ليس لديك صلاحية لعرض تقرير الفنيين', 'danger')
         return redirect(url_for('dashboard'))
     
