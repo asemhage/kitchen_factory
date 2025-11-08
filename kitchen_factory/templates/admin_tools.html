@@ -48,6 +48,32 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">إعدادات الإيصالات</h5>
+            </div>
+            <div class="card-body">
+                <p>حدد الحجم الافتراضي لإيصالات العربون والدفعات. يمكن دائماً تغييره أثناء الطباعة من النموذج نفسه.</p>
+                <form method="POST" action="{{ url_for('update_receipt_settings') }}">
+                    <div class="mb-3">
+                        <label for="receipt_page_size" class="form-label">حجم الورقة الافتراضي</label>
+                        <select class="form-select" id="receipt_page_size" name="receipt_page_size">
+                            <option value="A4" {% if receipt_page_size == 'A4' %}selected{% endif %}>A4 (قياسي)</option>
+                            <option value="A5" {% if receipt_page_size == 'A5' %}selected{% endif %}>A5 (حجم أصغر)</option>
+                        </select>
+                        <div class="form-text">
+                            يؤثر هذا الإعداد على جميع الإيصالات عند عدم اختيار حجم مخصص أثناء الطباعة.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> حفظ الإعدادات
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% if backup_info %}

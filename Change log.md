@@ -5,10 +5,12 @@
 ### الملفات المعدلة
 - `kitchen_factory/app.py` (السطور 30-3305، 4560-4870): إضافة rate_source، تحديث TechnicianDue، تحسين منطق مراحل التصنيع/التركيب، وإضافة تقرير الفنيين.
 - `kitchen_factory/templates/order_stages.html` (السطور 18-404): عرض ملخص التكاليف، تحديث النماذج، وإظهار تفاصيل الفنيين حسب المرحلة.
-- `kitchen_factory/templates/order_detail.html` (السطور 1-200): إضافة بطاقة تلخص مستحقات الفنيين لكل طلب.
+- `kitchen_factory/templates/order_detail.html` (السطور 1-200، 520-565): إضافة بطاقة تلخص مستحقات الفنيين لكل طلب وخيار اختيار حجم الإيصال (A4/A5) عند استلام العربون.
 - `kitchen_factory/templates/technicians.html` (السطور 1-100): إضافة رابط لتقرير الفنيين وتحديث الإجراءات.
 - `kitchen_factory/templates/base.html` (السطور 125-140): تضمين endpoint تقرير الفنيين في شريط التنقل.
+- `kitchen_factory/templates/admin_tools.html` (السطور 30-120): إضافة إعداد اختيار حجم الإيصال من أدوات المشرف.
 - `database_schema.md` (السطور 680-760): توثيق الحقول الجديدة والخصائص المحسوبة.
+- `kitchen_factory/app.py` (السطور 3350-3805، 3718-4188، 6100-6400): دعم اختيار حجم الورقة (A4/A5) وعرض مربعات تحديد لطريقة الدفع، وتخزين الإعداد من أدوات المشرف.
 
 ### الملفات الجديدة
 - `kitchen_factory/migrate_add_technician_pricing_metadata.py`: سكربت ترحيل لإضافة الحقول rate_source وpricing_notes وcalculated_at.

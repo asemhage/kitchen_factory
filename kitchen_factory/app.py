@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from math import isclose
 import os
 from werkzeug.utils import secure_filename
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, A5
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfutils
@@ -1316,6 +1316,14 @@ def init_default_settings():
             'category': 'permissions',
             'description': 'السماح لموظفي الاستقبال بتعديل الأسعار',
             'is_system': True
+        },
+        {
+            'key': 'receipt_page_size',
+            'value': 'A4',
+            'value_type': 'string',
+            'category': 'receipts',
+            'description': 'الحجم الافتراضي لإيصالات الدفعات (A4 أو A5)',
+            'is_system': False
         }
     ]
     
@@ -3469,13 +3477,31 @@ def number_to_arabic_words(number):
     # للأرقام الأكبر، استخدم التنسيق العددي
     return str(int(number))
 
-def generate_receipt_pdf_v2(order, payment, customer_name=None):
+def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
     """إنشاء إيصال قبض PDF بالتصميم الجديد - مضاف 2025-10-19"""
     buffer = io.BytesIO()
     
+    # اختيار حجم الورقة
+    if not page_size:
+        page_size = get_setting('receipt_page_size', 'A4')
+    page_size_options = {
+        'A4': A4,
+        'A5': A5,
+    }
+    selected_size = page_size_options.get((page_size or 'A4').upper(), A4)
+    
     # إنشاء مستند PDF
-    p = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    p = canvas.Canvas(buffer, pagesize=selected_size)
+    
+    # ضبط نظام الإحداثيات ليتناسب مع التصميم الأصلي (A4) مع مقياس ديناميكي
+    base_width, base_height = A4
+    actual_width, actual_height = selected_size
+    scale_factor = min(actual_width / base_width, actual_height / base_height)
+    x_offset = (actual_width - base_width * scale_factor) / 2
+    y_offset = (actual_height - base_height * scale_factor) / 2
+    p.translate(x_offset, y_offset)
+    p.scale(scale_factor, scale_factor)
+    width, height = base_width, base_height
     
     # تسجيل الخط العربي
     arabic_font = register_arabic_fonts()
@@ -3605,24 +3631,38 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None):
     
     # عرض طريقة الدفع مع تمييز المحدد
     p.setFont(font_name, 11)
-    methods = ['نقداً', 'شيك', 'تحويل مالي']
+    methods = [
+        ('نقداً', ['نقد', 'نقداً', 'Cash']),
+        ('شيك', ['شيك', 'Cheque']),
+        ('تحويل مالي', ['تحويل', 'تحويل مالي', 'تحويل بنكي', 'بنك', 'Bank']),
+    ]
     method_x = 3*cm
-    for method in methods:
-        if payment.payment_method and method in payment.payment_method:
-            # طريقة الدفع المحددة
-            p.setFillColorRGB(0, 0.47, 1)
-            p.setFont(font_name, 12)
-            method_formatted = format_arabic_text(f"✓ {method}")
-            p.drawString(method_x, detail_y, method_formatted)
-            p.setFillColorRGB(0, 0, 0)
-            p.setFont(font_name, 11)
-        else:
-            # طريقة دفع غير محددة
-            p.setFillColorRGB(0.6, 0.6, 0.6)
-            method_formatted = format_arabic_text(method)
-            p.drawString(method_x, detail_y, method_formatted)
-            p.setFillColorRGB(0, 0, 0)
-        method_x += 4*cm
+    checkbox_size = 0.45 * cm
+    spacing = 4 * cm
+    for label, keywords in methods:
+        is_selected = False
+        if payment.payment_method:
+            normalized = payment.payment_method.strip()
+            for keyword in keywords:
+                if keyword in normalized:
+                    is_selected = True
+                    break
+        # رسم مربع الاختيار
+        box_y = detail_y - checkbox_size + 0.15 * cm
+        p.rect(method_x, box_y, checkbox_size, checkbox_size, stroke=1, fill=0)
+        if is_selected:
+            p.setStrokeColorRGB(0, 0.47, 1)
+            p.setLineWidth(2)
+            p.line(method_x + 0.1 * cm, box_y + 0.1 * cm, method_x + checkbox_size - 0.1 * cm, box_y + checkbox_size - 0.1 * cm)
+            p.line(method_x + checkbox_size - 0.1 * cm, box_y + 0.1 * cm, method_x + 0.1 * cm, box_y + checkbox_size - 0.1 * cm)
+            p.setStrokeColorRGB(0, 0, 0)
+            p.setLineWidth(1)
+        # النص بجانب المربع
+        method_formatted = format_arabic_text(label)
+        p.setFillColorRGB(0, 0, 0 if is_selected else 0.45)
+        p.drawString(method_x + checkbox_size + 0.2 * cm, detail_y, method_formatted)
+        p.setFillColorRGB(0, 0, 0)
+        method_x += spacing
     
     y_position -= 6*cm
     
@@ -3749,6 +3789,7 @@ def receive_deposit(order_id):
         deposit_amount = float(request.form.get('deposit_amount', 0))
         payment_method = request.form.get('payment_method', 'نقد')
         payment_notes = request.form.get('payment_notes', '')
+        receipt_page_size = request.form.get('receipt_page_size', 'A4')
         
         # التحقق من صحة مبلغ العربون
         if deposit_amount <= 0:
@@ -3794,10 +3835,13 @@ def receive_deposit(order_id):
         db.session.commit()
         
         # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
+        page_size = request.form.get('receipt_page_size') or get_setting('receipt_page_size', 'A4')
+
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
-            customer_name=order.customer.name if order.customer else None
+            customer_name=order.customer.name if order.customer else None,
+            page_size=page_size
         )
         
         # حفظ PDF في مجلد uploads مؤقتاً
@@ -4100,10 +4144,12 @@ def add_payment(order_id):
         db.session.commit()
         
         # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
+        page_size = request.form.get('receipt_page_size') or get_setting('receipt_page_size', 'A4')
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
-            customer_name=order.customer.name if order.customer else None
+            customer_name=order.customer.name if order.customer else None,
+            page_size=page_size
         )
         
         flash(f'تم تسجيل دفعة بقيمة {amount} دينار ليبي وإصدار الإيصال', 'success')
@@ -4141,10 +4187,12 @@ def payment_receipt_v2(order_id, payment_id):
             return redirect(url_for('order_detail', order_id=order_id))
         
         # إنشاء PDF بالتصميم الجديد
+        page_size = request.args.get('page_size') or get_setting('receipt_page_size', 'A4')
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
-            customer_name=order.customer.name if order.customer else None
+            customer_name=order.customer.name if order.customer else None,
+            page_size=page_size
         )
         
         # إرسال الملف
@@ -4212,6 +4260,38 @@ def add_order_cost(order_id):
         db.session.rollback()
         flash(f'حدث خطأ: {str(e)}', 'danger')
         return redirect(url_for('order_costs', order_id=order_id))
+
+
+@app.route('/admin/update-receipt-settings', methods=['POST'])
+@login_required
+def update_receipt_settings():
+    """تحديث إعداد حجم ورقة إيصالات الدفعات"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لتعديل إعدادات الإيصالات', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        page_size = request.form.get('receipt_page_size', 'A4').upper()
+        allowed_sizes = ['A4', 'A5']
+        
+        if page_size not in allowed_sizes:
+            flash('حجم الورقة المحدد غير مدعوم', 'danger')
+            return redirect(url_for('admin_tools'))
+        
+        set_setting(
+            key='receipt_page_size',
+            value=page_size,
+            value_type='string',
+            category='receipts',
+            description='الحجم الافتراضي لإيصالات الدفعات (A4 أو A5)',
+            user=current_user
+        )
+        
+        flash(f'تم تحديث حجم الإيصالات الافتراضي إلى {page_size}', 'success')
+        return redirect(url_for('admin_tools'))
+    except Exception as e:
+        flash(f'حدث خطأ أثناء تحديث إعدادات الإيصال: {str(e)}', 'danger')
+        return redirect(url_for('admin_tools'))
 
 @app.route('/order/<int:order_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -6191,7 +6271,13 @@ if __name__ == '__main__':
                     'date': backup_file.replace('backup_', '').replace('.db', '')
                 })
 
-        return render_template('admin_tools.html', backup_info=backup_info)
+        receipt_page_size = get_setting('receipt_page_size', 'A4')
+
+        return render_template(
+            'admin_tools.html',
+            backup_info=backup_info,
+            receipt_page_size=receipt_page_size
+        )
 
     @app.route('/admin/reset-all-data', methods=['POST'])
     @login_required
