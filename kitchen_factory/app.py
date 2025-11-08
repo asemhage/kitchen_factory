@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import validates
 from datetime import datetime, timezone, timedelta
+from math import isclose
 import os
 from werkzeug.utils import secure_filename
 from reportlab.lib.pagesizes import A4
@@ -62,6 +63,21 @@ def clean_customer_name(name):
         cleaned_name = cleaned_name[:30]
     
     return cleaned_name if cleaned_name else "customer"
+
+
+def build_pricing_note(stage_name, technician_name, applied_rate, default_rate, username):
+    """تجهيز ملاحظة التسعير اعتماداً على المصدر"""
+    if applied_rate is None:
+        return None
+    rate_text = f"{applied_rate:.2f} د.ل/م²"
+    if default_rate and isclose(applied_rate, default_rate, rel_tol=1e-4, abs_tol=1e-4):
+        return f"سعر افتراضي ({rate_text}) للفني {technician_name} (اعتمد بواسطة {username})"
+    if default_rate:
+        return (
+            f"سعر معدل يدوياً ({rate_text}) بدلاً من السعر الافتراضي "
+            f"{default_rate:.2f} د.ل/م² للفني {technician_name} (اعتمد بواسطة {username})"
+        )
+    return f"سعر مُدخل يدوياً ({rate_text}) للفني {technician_name} (اعتمد بواسطة {username})"
 
 # نماذج قاعدة البيانات
 
@@ -704,15 +720,24 @@ class TechnicianDue(db.Model):
     
     # ملاحظات
     notes = db.Column(db.Text)
+    pricing_notes = db.Column(db.Text)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    calculated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     # العلاقات
     technician = db.relationship('Technician', back_populates='dues')
     order = db.relationship('Order', backref='technician_dues')
     stage = db.relationship('Stage', backref='technician_dues')
     payment = db.relationship('TechnicianPayment', back_populates='dues_paid', foreign_keys=[payment_id])
+
+    @property
+    def rate_label(self):
+        """تنسيق سعر المتر للعرض"""
+        if self.rate_per_meter:
+            return f"{self.rate_per_meter:.2f} د.ل/م²"
+        return "غير محدد"
 
 
 class TechnicianPayment(db.Model):
@@ -849,6 +874,7 @@ class Stage(db.Model):
     # أسعار الفنيين (قابلة للتعديل) - مضاف 2025-10-18
     manufacturing_rate = db.Column(db.Float)  # سعر المتر للتصنيع
     installation_rate = db.Column(db.Float)   # سعر المتر للتركيب
+    rate_source = db.Column(db.String(30))    # default_rate, manual_override, missing_default
     
     # ربط بالصالة
     showroom_id = db.Column(db.Integer, db.ForeignKey('showrooms.id'), nullable=False)
@@ -857,6 +883,20 @@ class Stage(db.Model):
     order = db.relationship('Order', back_populates='stages')
     manufacturing_technician = db.relationship('Technician', foreign_keys=[manufacturing_technician_id])
     installation_technician = db.relationship('Technician', foreign_keys=[installation_technician_id])
+
+    @property
+    def manufacturing_total_cost(self):
+        """التكلفة الإجمالية للتصنيع"""
+        if self.manufacturing_rate and self.order_meters:
+            return round(float(self.manufacturing_rate) * float(self.order_meters), 2)
+        return 0.0
+
+    @property
+    def installation_total_cost(self):
+        """التكلفة الإجمالية للتركيب"""
+        if self.installation_rate and self.order_meters:
+            return round(float(self.installation_rate) * float(self.order_meters), 2)
+        return 0.0
 
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2943,7 +2983,31 @@ def order_stages(order_id):
     order.stages = order_stages
     
     technicians = Technician.query.filter_by(status='نشط').all()
-    return render_template('order_stages.html', order=order, technicians=technicians)
+    
+    technician_dues_map = {}
+    total_meters = 0.0
+    total_amount = 0.0
+    for due in order.technician_dues:
+        technician_dues_map.setdefault(due.stage_id, []).append(due)
+        if due.meters:
+            total_meters += float(due.meters)
+        if due.amount:
+            total_amount += float(due.amount)
+    
+    cost_summary = {
+        'total_meters': round(total_meters, 2),
+        'total_amount': round(total_amount, 2),
+        'manufacturing_amount': round(sum(float(d.amount or 0) for d in order.technician_dues if d.due_type == 'manufacturing'), 2),
+        'installation_amount': round(sum(float(d.amount or 0) for d in order.technician_dues if d.due_type == 'installation'), 2)
+    }
+    
+    return render_template(
+        'order_stages.html',
+        order=order,
+        technicians=technicians,
+        technician_dues_map=technician_dues_map,
+        cost_summary=cost_summary
+    )
 
 @app.route('/order/<int:order_id>/update-stage/<int:stage_id>', methods=['POST'])
 @login_required
@@ -2988,47 +3052,94 @@ def update_order_stage(order_id, stage_id):
                 rate = request.form.get('rate')  # السعر قابل للتعديل
                 
                 if technician_id and rate:
+                    technician = db.session.get(Technician, int(technician_id))
+                    if not technician:
+                        flash('تعذر العثور على الفني المحدد.', 'danger')
+                        return redirect(url_for('order_stages', order_id=order_id))
+                    
+                    applied_rate = float(rate)
+                    order_meters = float(order.meters or 0)
+                    if order_meters <= 0:
+                        flash('عدد الأمتار غير صالح - يرجى التأكد من تحديث مرحلة حصر المتطلبات.', 'warning')
+                        return redirect(url_for('order_stages', order_id=order_id))
+                    
+                    if applied_rate <= 0:
+                        flash('يرجى إدخال سعر متر صحيح.', 'danger')
+                        return redirect(url_for('order_stages', order_id=order_id))
+                    
                     # حفظ بيانات الفني والسعر في المرحلة
                     if stage.stage_name == 'التصنيع':
                         stage.manufacturing_technician_id = int(technician_id)
-                        stage.manufacturing_rate = float(rate)
+                        stage.manufacturing_rate = applied_rate
                         stage.manufacturing_start_date = datetime.now()
-                        stage.order_meters = order.meters
                         cost_type = 'تصنيع'
-                        total_cost = float(rate) * order.meters
+                        default_rate = technician.manufacturing_rate_per_meter or 0.0
+                        due_type = 'manufacturing'
                     else:  # التركيب
                         stage.installation_technician_id = int(technician_id)
-                        stage.installation_rate = float(rate)
+                        stage.installation_rate = applied_rate
                         stage.installation_start_date = datetime.now()
-                        stage.order_meters = order.meters
                         cost_type = 'تركيب'
-                        total_cost = float(rate) * order.meters
+                        default_rate = technician.installation_rate_per_meter or 0.0
+                        due_type = 'installation'
                     
-                    # الحصول على اسم الفني
-                    technician = db.session.get(Technician, int(technician_id))
+                    stage.order_meters = order_meters
+                    
+                    if default_rate and isclose(applied_rate, float(default_rate), rel_tol=1e-4, abs_tol=1e-4):
+                        stage.rate_source = 'default_rate'
+                    elif default_rate:
+                        stage.rate_source = 'manual_override'
+                    else:
+                        stage.rate_source = 'missing_default'
+                    
+                    total_cost = round(applied_rate * order_meters, 2)
+                    rate_note = build_pricing_note(
+                        stage.stage_name,
+                        technician.name,
+                        applied_rate,
+                        float(default_rate) if default_rate else None,
+                        current_user.username
+                    )
                     
                     # إضافة التكلفة إلى OrderCost
-                    order_cost = OrderCost(
+                    cost_description = f'{cost_type}: {technician.name} ({applied_rate:.2f} د.ل/م² × {order_meters} م²)'
+                    existing_cost = OrderCost.query.filter_by(
                         order_id=order.id,
                         cost_type=cost_type,
-                        description=f'{cost_type}: {technician.name} ({rate} د.ل/م² × {order.meters} م²)',
-                        amount=total_cost,
-                        date=datetime.now().date(),
-                        showroom_id=order.showroom_id
-                    )
-                    db.session.add(order_cost)
+                        description=cost_description
+                    ).first()
+                    if existing_cost:
+                        existing_cost.amount = total_cost
+                        existing_cost.date = datetime.now().date()
+                    else:
+                        order_cost = OrderCost(
+                            order_id=order.id,
+                            cost_type=cost_type,
+                            description=cost_description,
+                            amount=total_cost,
+                            date=datetime.now().date(),
+                            showroom_id=order.showroom_id
+                        )
+                        db.session.add(order_cost)
                     
                     # إضافة مستحق للفني
-                    technician_due = TechnicianDue(
-                        technician_id=int(technician_id),
-                        order_id=order.id,
-                        stage_id=stage.id,
-                        amount=total_cost,
-                        due_date=datetime.now().date(),
-                        status='مستحق',
-                        notes=f'{cost_type} - طلب رقم {order.id}'
-                    )
-                    db.session.add(technician_due)
+                    technician_due = TechnicianDue.query.filter_by(stage_id=stage.id, due_type=due_type).first()
+                    if not technician_due:
+                        technician_due = TechnicianDue(
+                            technician_id=int(technician_id),
+                            order_id=order.id,
+                            stage_id=stage.id,
+                            due_type=due_type
+                        )
+                        db.session.add(technician_due)
+                    
+                    technician_due.technician_id = int(technician_id)
+                    technician_due.meters = order_meters
+                    technician_due.rate_per_meter = applied_rate
+                    technician_due.amount = total_cost
+                    technician_due.calculated_at = datetime.now(timezone.utc)
+                    technician_due.pricing_notes = rate_note
+                    technician_due.notes = f'{cost_type} - طلب رقم {order.id}'
                     
                     flash(f'تم بدء مرحلة {stage.stage_name} وإضافة التكلفة ({total_cost:.2f} د.ل)', 'success')
                 else:
@@ -4649,9 +4760,9 @@ def get_technician_rates(technician_id):
     return jsonify({
         'id': technician.id,
         'name': technician.name,
-        'specialty': technician.specialty,
-        'manufacturing_rate': float(technician.manufacturing_rate) if technician.manufacturing_rate else 0.0,
-        'installation_rate': float(technician.installation_rate) if technician.installation_rate else 0.0
+        'specialty': technician.specialization,
+        'manufacturing_rate': float(technician.manufacturing_rate_per_meter or 0.0),
+        'installation_rate': float(technician.installation_rate_per_meter or 0.0)
     })
 
 
@@ -4730,6 +4841,60 @@ def technician_dues(technician_id):
     
     return render_template('technician_dues.html', technician=technician, dues=dues)
 
+
+@app.route('/technician_reports')
+@login_required
+def technician_reports():
+    """تقرير أداء ومساهمة الفنيين"""
+    if current_user.role not in ['مدير', 'مسؤول إنتاج']:
+        flash('ليس لديك صلاحية لعرض تقرير الفنيين', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    technicians = Technician.query.all()
+    report_rows = []
+    for technician in technicians:
+        dues = technician.dues or []
+        total_meters = sum(float(d.meters or 0) for d in dues)
+        total_amount = sum(float(d.amount or 0) for d in dues)
+        paid_amount = sum(float(d.amount or 0) for d in dues if d.is_paid)
+        pending_amount = total_amount - paid_amount
+        manufacturing_amount = sum(float(d.amount or 0) for d in dues if d.due_type == 'manufacturing')
+        installation_amount = sum(float(d.amount or 0) for d in dues if d.due_type == 'installation')
+        manual_overrides = sum(
+            1 for d in dues
+            if d.pricing_notes and 'معدل يدوياً' in d.pricing_notes
+        )
+        default_rates_used = sum(
+            1 for d in dues
+            if d.pricing_notes and 'سعر افتراضي' in d.pricing_notes
+        )
+        
+        report_rows.append({
+            'technician': technician,
+            'total_meters': round(total_meters, 2),
+            'total_amount': round(total_amount, 2),
+            'paid_amount': round(paid_amount, 2),
+            'pending_amount': round(pending_amount, 2),
+            'manufacturing_amount': round(manufacturing_amount, 2),
+            'installation_amount': round(installation_amount, 2),
+            'manual_overrides': manual_overrides,
+            'default_rates_used': default_rates_used,
+            'manufacturing_orders': Stage.query.filter_by(manufacturing_technician_id=technician.id).count(),
+            'installation_orders': Stage.query.filter_by(installation_technician_id=technician.id).count()
+        })
+    
+    totals = {
+        'total_amount': round(sum(row['total_amount'] for row in report_rows), 2),
+        'paid_amount': round(sum(row['paid_amount'] for row in report_rows), 2),
+        'pending_amount': round(sum(row['pending_amount'] for row in report_rows), 2),
+        'total_meters': round(sum(row['total_meters'] for row in report_rows), 2)
+    }
+    
+    return render_template(
+        'technician_reports.html',
+        report_rows=report_rows,
+        totals=totals
+    )
 
 @app.route('/technician/<int:technician_id>/pay', methods=['GET', 'POST'])
 @login_required

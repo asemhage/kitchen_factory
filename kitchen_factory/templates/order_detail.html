@@ -188,6 +188,83 @@
     </div>
 
     <div class="col-md-4">
+        {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
+        {% set ns = namespace(total=0, paid=0, meters=0) %}
+        {% for due in order.technician_dues %}
+            {% set ns.total = ns.total + (due.amount or 0) %}
+            {% if due.is_paid %}
+                {% set ns.paid = ns.paid + (due.amount or 0) %}
+            {% endif %}
+            {% set ns.meters = ns.meters + (due.meters or 0) %}
+        {% endfor %}
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-user-hard-hat"></i> تكلفة ومستحقات الفنيين</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded">
+                            <strong>إجمالي التكلفة</strong>
+                            <div class="fs-5 text-success">{{ "%.2f"|format(ns.total) }} د.ل</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded">
+                            <strong>المدفوع</strong>
+                            <div class="fs-5 text-primary">{{ "%.2f"|format(ns.paid) }} د.ل</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info py-2">
+                    <i class="fas fa-ruler-combined"></i>
+                    إجمالي الأمتار المحتسبة: <strong>{{ "%.2f"|format(ns.meters) }} م²</strong>
+                </div>
+                
+                {% if order.technician_dues %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>المرحلة</th>
+                                <th>الفني</th>
+                                <th>السعر</th>
+                                <th>المبلغ</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for due in order.technician_dues %}
+                            <tr>
+                                <td>{{ due.stage.stage_name if due.stage else '-' }}</td>
+                                <td>{{ due.technician.name if due.technician else '-' }}</td>
+                                <td>{{ due.rate_label }}</td>
+                                <td>{{ "%.2f"|format(due.amount or 0) }}</td>
+                                <td>
+                                    {% if due.is_paid %}
+                                        <span class="badge bg-success">مدفوع</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">قيد الدفع</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if due.pricing_notes %}
+                            <tr class="table-light">
+                                <td colspan="5" class="small text-muted">{{ due.pricing_notes }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-light text-center mb-0">
+                    لا توجد مستحقات مسجلة بعد لهذه الطلبية.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">معلومات العميل</h5>

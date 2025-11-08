@@ -70,6 +70,31 @@
                         </tbody>
                     </table>
                 </div>
+                <hr class="my-3">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-2">
+                        <div class="p-3 bg-light rounded">
+                            <strong>إجمالي الأمتار:</strong>
+                            <div class="fs-5">{{ cost_summary.total_meters }} م²</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <div class="p-3 bg-light rounded">
+                            <strong>تكلفة التصنيع:</strong>
+                            <div class="fs-5 text-primary">{{ cost_summary.manufacturing_amount }} د.ل</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <div class="p-3 bg-light rounded">
+                            <strong>تكلفة التركيب:</strong>
+                            <div class="fs-5 text-success">{{ cost_summary.installation_amount }} د.ل</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-calculator"></i>
+                    إجمالي تكاليف الفنيين المسجلة: <strong>{{ cost_summary.total_amount }} دينار ليبي</strong>
+                </div>
             </div>
         </div>
     </div>
@@ -89,6 +114,7 @@
                                 <th>المرحلة</th>
                                 <th>الحالة</th>
                                 <th>المسؤول</th>
+                                <th>التكلفة الفنية</th>
                                 <th>الملاحظات</th>
                                 <th>الإجراءات</th>
                             </tr>
@@ -108,6 +134,55 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ stage.assigned_to or 'لم يحدد بعد' }}</td>
+                                {% set stage_dues = technician_dues_map.get(stage.id, []) %}
+                                <td class="text-nowrap">
+                                    {% if stage.stage_name == 'التصنيع' and stage.manufacturing_technician %}
+                                        <div><strong>{{ stage.manufacturing_technician.name }}</strong></div>
+                                        <div class="small text-muted">سعر المتر: {{ "%.2f"|format(stage.manufacturing_rate or 0) }} د.ل</div>
+                                        <div class="small text-muted">عدد الأمتار: {{ stage.order_meters or order.meters }} م²</div>
+                                        <div class="small text-primary">التكلفة: {{ "%.2f"|format(stage.manufacturing_total_cost) }} د.ل</div>
+                                        {% if stage.rate_source %}
+                                            <div class="badge bg-light text-dark mt-1">
+                                                {% if stage.rate_source == 'default_rate' %}
+                                                    سعر افتراضي
+                                                {% elif stage.rate_source == 'manual_override' %}
+                                                    سعر معدل يدوياً
+                                                {% else %}
+                                                    بدون سعر افتراضي
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    {% elif stage.stage_name == 'التركيب' and stage.installation_technician %}
+                                        <div><strong>{{ stage.installation_technician.name }}</strong></div>
+                                        <div class="small text-muted">سعر المتر: {{ "%.2f"|format(stage.installation_rate or 0) }} د.ل</div>
+                                        <div class="small text-muted">عدد الأمتار: {{ stage.order_meters or order.meters }} م²</div>
+                                        <div class="small text-success">التكلفة: {{ "%.2f"|format(stage.installation_total_cost) }} د.ل</div>
+                                        {% if stage.rate_source %}
+                                            <div class="badge bg-light text-dark mt-1">
+                                                {% if stage.rate_source == 'default_rate' %}
+                                                    سعر افتراضي
+                                                {% elif stage.rate_source == 'manual_override' %}
+                                                    سعر معدل يدوياً
+                                                {% else %}
+                                                    بدون سعر افتراضي
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    {% elif stage_dues %}
+                                        {% for due in stage_dues %}
+                                            <div><strong>{{ due.technician.name }}</strong></div>
+                                            <div class="small text-muted">سعر المتر: {{ due.rate_label }}</div>
+                                            <div class="small text-muted">عدد الأمتار: {{ due.meters or order.meters }} م²</div>
+                                            <div class="small text-muted">المبلغ: {{ "%.2f"|format(due.amount or 0) }} د.ل</div>
+                                            {% if due.pricing_notes %}
+                                                <div class="small text-info">{{ due.pricing_notes }}</div>
+                                            {% endif %}
+                                            {% if not loop.last %}<hr class="my-2">{% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">لا توجد بيانات فنية</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if stage.stage_name in ['تصميم', 'استلام العربون'] %}
                                         {% if current_user.role in ['مدير', 'موظف استقبال'] %}
@@ -178,9 +253,9 @@
                                                         <option value="">-- اختر الفني --</option>
                                                         {% for tech in technicians %}
                                                         <option value="{{ tech.id }}" 
-                                                                data-manufacturing-rate="{{ tech.manufacturing_rate or 0 }}"
-                                                                data-installation-rate="{{ tech.installation_rate or 0 }}">
-                                                            {{ tech.name }} - {{ tech.specialty }}
+                                                                data-manufacturing-rate="{{ tech.manufacturing_rate_per_meter or 0 }}"
+                                                                data-installation-rate="{{ tech.installation_rate_per_meter or 0 }}">
+                                                            {{ tech.name }}{% if tech.specialization %} - {{ tech.specialization }}{% endif %}
                                                         </option>
                                                         {% endfor %}
                                                     </select>

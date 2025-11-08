@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}الفني {{ technician.name }} - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">الفني {{ technician.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('technicians') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لقائمة الفنيين
+            </a>
+            {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
+            <a href="{{ url_for('edit_technician', technician_id=technician.id) }}" class="btn btn-sm btn-warning">
+                <i class="fas fa-edit"></i> تعديل
+            </a>
+            <a href="{{ url_for('technician_dues', technician_id=technician.id) }}" class="btn btn-sm btn-success">
+                <i class="fas fa-money-bill-wave"></i> المستحقات
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% set stats = namespace(total_dues=0, pending_dues=0, total_meters=0, manual_overrides=0, default_rates=0) %}
+{% for due in technician.dues %}
+    {% set stats.total_dues = stats.total_dues + (due.amount or 0) %}
+    {% if not due.is_paid %}
+        {% set stats.pending_dues = stats.pending_dues + (due.amount or 0) %}
+    {% endif %}
+    {% set stats.total_meters = stats.total_meters + (due.meters or 0) %}
+    {% if due.pricing_notes and 'معدل يدوياً' in due.pricing_notes %}
+        {% set stats.manual_overrides = stats.manual_overrides + 1 %}
+    {% elif due.pricing_notes and 'سعر افتراضي' in due.pricing_notes %}
+        {% set stats.default_rates = stats.default_rates + 1 %}
+    {% endif %}
+{% endfor %}
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-id-card"></i> بيانات الفني</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>الاسم:</strong> {{ technician.name }}</p>
+                <p><strong>الهاتف:</strong> {{ technician.phone or 'غير مسجل' }}</p>
+                <p><strong>البريد الإلكتروني:</strong> {{ technician.email or 'غير مسجل' }}</p>
+                <p><strong>الرقم الوطني:</strong> {{ technician.national_id or 'غير مسجل' }}</p>
+                <p><strong>التخصص:</strong> {{ technician.specialization or 'غير محدد' }}</p>
+                <p><strong>الحالة:</strong>
+                    {% if technician.status == 'نشط' %}
+                        <span class="badge bg-success">{{ technician.status }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ technician.status }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>تاريخ التعيين:</strong> {{ technician.hire_date or 'غير متوفر' }}</p>
+                <hr>
+                <p><strong>سعر متر التصنيع:</strong> {{ "%.2f"|format(technician.manufacturing_rate_per_meter or 0) }} د.ل</p>
+                <p><strong>سعر متر التركيب:</strong> {{ "%.2f"|format(technician.installation_rate_per_meter or 0) }} د.ل</p>
+                {% if technician.bank_name or technician.bank_account %}
+                <hr>
+                <p><strong>البنك:</strong> {{ technician.bank_name or '-' }}</p>
+                <p><strong>حساب بنكي:</strong> {{ technician.bank_account or '-' }}</p>
+                {% endif %}
+                {% if technician.notes %}
+                <hr>
+                <p><strong>ملاحظات:</strong> {{ technician.notes }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> نظرة مالية سريعة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4 mb-3">
+                                <div class="p-3 bg-light rounded">
+                                    <strong>إجمالي المستحقات</strong>
+                                    <div class="fs-4 text-success">{{ "%.2f"|format(stats.total_dues) }} د.ل</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="p-3 bg-light rounded">
+                                    <strong>المستحقات غير المدفوعة</strong>
+                                    <div class="fs-4 text-warning">{{ "%.2f"|format(stats.pending_dues) }} د.ل</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="p-3 bg-light rounded">
+                                    <strong>الأمتار المنجزة</strong>
+                                    <div class="fs-4 text-primary">{{ "%.2f"|format(stats.total_meters) }} م²</div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row text-center">
+                            <div class="col-md-6 mb-3">
+                                <div class="p-3 bg-light rounded">
+                                    <strong>عمليات التسعير الافتراضي</strong>
+                                    <div class="fs-5 text-info">{{ stats.default_rates }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="p-3 bg-light rounded">
+                                    <strong>التعديلات اليدوية</strong>
+                                    <div class="fs-5 text-danger">{{ stats.manual_overrides }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-light mb-0">
+                            <i class="fas fa-hammer"></i>
+                            طلبات التصنيع: <strong>{{ total_manufacturing_orders }}</strong> │
+                            <i class="fas fa-tools"></i>
+                            طلبات التركيب: <strong>{{ total_installation_orders }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> المستحقات الحالية</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_dues %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>الطلب</th>
+                                <th>المرحلة</th>
+                                <th>النوع</th>
+                                <th>السعر</th>
+                                <th>الأمتار</th>
+                                <th>المبلغ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for due in pending_dues %}
+                            <tr>
+                                <td>#{{ due.order_id }}</td>
+                                <td>{{ due.stage.stage_name if due.stage else '-' }}</td>
+                                <td>
+                                    {% if due.due_type == 'manufacturing' %}
+                                        <span class="badge bg-primary">تصنيع</span>
+                                    {% else %}
+                                        <span class="badge bg-success">تركيب</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ due.rate_label }}</td>
+                                <td>{{ due.meters or '-' }}</td>
+                                <td>{{ "%.2f"|format(due.amount or 0) }} د.ل</td>
+                            </tr>
+                            {% if due.pricing_notes %}
+                            <tr class="table-light">
+                                <td colspan="6" class="small text-muted">{{ due.pricing_notes }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="fas fa-check-circle"></i>
+                    لا توجد مستحقات غير مدفوعة حالياً.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-receipt"></i> سجل الدفعات</h5>
+            </div>
+            <div class="card-body">
+                {% if payments %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>التاريخ</th>
+                                <th>المبلغ</th>
+                                <th>الطريقة</th>
+                                <th>المرجع</th>
+                                <th>الملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments %}
+                            <tr>
+                                <td>{{ payment.payment_date }}</td>
+                                <td>{{ "%.2f"|format(payment.amount) }} د.ل</td>
+                                <td>{{ payment.payment_method or '-' }}</td>
+                                <td>{{ payment.reference_number or '-' }}</td>
+                                <td>{{ payment.notes or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    لا توجد دفعات مسجلة لهذا الفني بعد.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

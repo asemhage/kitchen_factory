@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير الفنيين - نظام إدارة مصنع المطابخ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">تقرير الفنيين</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('technicians') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لقائمة الفنيين
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h6 class="text-muted">إجمالي المستحقات</h6>
+                <div class="fs-4 text-success">{{ "%.2f"|format(totals.total_amount) }} د.ل</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body text-center">
+                <h6 class="text-muted">المبالغ المدفوعة</h6>
+                <div class="fs-4 text-primary">{{ "%.2f"|format(totals.paid_amount) }} د.ل</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <h6 class="text-muted">مبالغ قيد الدفع</h6>
+                <div class="fs-4 text-warning">{{ "%.2f"|format(totals.pending_amount) }} د.ل</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h6 class="text-muted">إجمالي الأمتار</h6>
+                <div class="fs-4 text-info">{{ "%.2f"|format(totals.total_meters) }} م²</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-table"></i> ملخص فني</h5>
+    </div>
+    <div class="card-body">
+        {% if report_rows %}
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>الفني</th>
+                        <th>الحالة</th>
+                        <th>التخصص</th>
+                        <th>الأمتار</th>
+                        <th>إجمالي المستحقات</th>
+                        <th>المدفوع</th>
+                        <th>قيد الدفع</th>
+                        <th>تصنيع</th>
+                        <th>تركيب</th>
+                        <th>افتراضي</th>
+                        <th>معدل</th>
+                        <th>طلبات التصنيع</th>
+                        <th>طلبات التركيب</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report_rows %}
+                    <tr>
+                        <td><strong>{{ row.technician.name }}</strong></td>
+                        <td>
+                            {% if row.technician.status == 'نشط' %}
+                                <span class="badge bg-success">نشط</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ row.technician.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.technician.specialization or '-' }}</td>
+                        <td>{{ "%.2f"|format(row.total_meters) }} م²</td>
+                        <td>{{ "%.2f"|format(row.total_amount) }} د.ل</td>
+                        <td>{{ "%.2f"|format(row.paid_amount) }} د.ل</td>
+                        <td>{{ "%.2f"|format(row.pending_amount) }} د.ل</td>
+                        <td>{{ "%.2f"|format(row.manufacturing_amount) }} د.ل</td>
+                        <td>{{ "%.2f"|format(row.installation_amount) }} د.ل</td>
+                        <td>{{ row.default_rates_used }}</td>
+                        <td>{{ row.manual_overrides }}</td>
+                        <td>{{ row.manufacturing_orders }}</td>
+                        <td>{{ row.installation_orders }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            لا توجد بيانات لعرضها حالياً.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

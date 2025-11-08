@@ -11,9 +11,14 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="card-title">قائمة الفنيين</h5>
                 {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
-                <a href="{{ url_for('new_technician') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> إضافة فني جديد
-                </a>
+                <div class="btn-group">
+                    <a href="{{ url_for('technician_reports') }}" class="btn btn-outline-info">
+                        <i class="fas fa-chart-line"></i> تقرير الفنيين
+                    </a>
+                    <a href="{{ url_for('new_technician') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> إضافة فني جديد
+                    </a>
+                </div>
                 {% endif %}
             </div>
             
@@ -71,9 +76,10 @@
                                     {{ technician.status }}
                                 </span>
                             </td>
-                            <td>{{ "%.2f"|format(technician.total_dues) }} د.ل</td>
+                            {% set total_amount = technician.total_dues + technician.total_paid %}
+                            <td>{{ "%.2f"|format(total_amount) }} د.ل</td>
                             <td>{{ "%.2f"|format(technician.total_paid) }} د.ل</td>
-                            <td>{{ "%.2f"|format(technician.total_dues - technician.total_paid) }} د.ل</td>
+                            <td>{{ "%.2f"|format(technician.total_dues) }} د.ل</td>
                             <td>
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ url_for('technician_detail', technician_id=technician.id) }}" class="btn btn-sm btn-outline-primary">

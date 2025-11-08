@@ -124,7 +124,7 @@
                         
                         {% if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات'] %}
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint in ['technicians', 'technician_detail', 'new_technician', 'edit_technician', 'technician_dues', 'pay_technician_dues'] %}active{% endif %}" href="{{ url_for('technicians') }}">
+                            <a class="nav-link {% if request.endpoint in ['technicians', 'technician_detail', 'new_technician', 'edit_technician', 'technician_dues', 'pay_technician_dues', 'technician_reports'] %}active{% endif %}" href="{{ url_for('technicians') }}">
                                 <i class="fas fa-hard-hat"></i>
                                 إدارة الفنيين
                             </a>
