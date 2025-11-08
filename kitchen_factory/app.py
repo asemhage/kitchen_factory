@@ -4152,15 +4152,17 @@ def add_payment(order_id):
             page_size=page_size
         )
         
+        # حفظ PDF في مجلد uploads لفتحه في نافذة جديدة وإجبار المتصفح على التحديث
+        import os
+        pdf_filename = f'payment_receipt_order_{order.id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+        with open(pdf_path, 'wb') as f:
+            f.write(receipt_pdf.getvalue())
+        
         flash(f'تم تسجيل دفعة بقيمة {amount} دينار ليبي وإصدار الإيصال', 'success')
         
-        # إرسال ملف PDF للتحميل
-        return send_file(
-            receipt_pdf,
-            as_attachment=True,
-            download_name=f'receipt_order_{order.id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
-            mimetype='application/pdf'
-        )
+        # إعادة التوجيه مع فتح الإيصال في نافذة جديدة عند التحميل
+        return redirect(url_for('order_detail', order_id=order_id, print_receipt=pdf_filename))
         
     except Exception as e:
         db.session.rollback()
