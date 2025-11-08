@@ -1,3 +1,8 @@
+# Ignore everything outside the tracked application directory
+/*
+!.gitignore
+!/kitchen_factory/
+
 # Python
 __pycache__/
 *.py[cod]
