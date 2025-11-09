@@ -4340,13 +4340,13 @@ def admin_new_warehouse():
         
         if not name:
             flash('اسم المخزن مطلوب', 'danger')
-            return render_template('admin_warehouse_form.html', mode='create')
+            return render_template('admin_warehouse_form.html', mode='create', warehouse=None)
         
         if code:
             existing_code = Warehouse.query.filter(Warehouse.code == code).first()
             if existing_code:
                 flash('كود المخزن مستخدم بالفعل', 'danger')
-                return render_template('admin_warehouse_form.html', mode='create')
+                return render_template('admin_warehouse_form.html', mode='create', warehouse=None)
         
         warehouse = Warehouse(
             name=name,
@@ -4374,7 +4374,7 @@ def admin_new_warehouse():
         flash('تم إنشاء المخزن بنجاح', 'success')
         return redirect(url_for('admin_warehouses'))
     
-    return render_template('admin_warehouse_form.html', mode='create')
+    return render_template('admin_warehouse_form.html', mode='create', warehouse=None)
 
 
 @app.route('/admin/warehouses/<int:warehouse_id>/edit', methods=['GET', 'POST'])
