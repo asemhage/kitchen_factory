@@ -144,6 +144,7 @@
                     </thead>
                     <tbody>
                         {% for om in order_materials %}
+                        {% set is_complete = (om.completion_percentage == 100) %}
                         <tr class="{% if om.status == 'complete' %}table-success{% elif om.status == 'partial' %}table-warning{% else %}table-danger{% endif %}">
                             <td>{{ loop.index }}</td>
                             <td>
@@ -153,21 +154,21 @@
                             <td>{{ om.quantity_needed }} {{ om.material.unit }}</td>
                             <td>{{ om.quantity_consumed }} {{ om.material.unit }}</td>
                             <td>
-                                {% if om.quantity_shortage > 0 %}
-                                <span class="badge badge-danger">
+                                {% if is_complete %}
+                                <span class="fw-bold text-success">لا يوجد</span>
+                                {% else %}
+                                <span class="fw-bold text-warning">
                                     {{ om.quantity_shortage }} {{ om.material.unit }}
                                 </span>
-                                {% else %}
-                                <span class="badge badge-success">لا يوجد</span>
                                 {% endif %}
                             </td>
                             <td>
-                                {% if om.status == 'complete' %}
-                                <span class="badge badge-success">مكتمل</span>
+                                {% if is_complete %}
+                                <span class="fw-bold text-success">مكتمل</span>
                                 {% elif om.status == 'partial' %}
-                                <span class="badge badge-warning">جزئي</span>
+                                <span class="fw-bold text-warning">جزئي</span>
                                 {% else %}
-                                <span class="badge badge-danger">معلق</span>
+                                <span class="fw-bold text-warning">معلق</span>
                                 {% endif %}
                             </td>
                             <td>
