@@ -173,7 +173,7 @@
                             </td>
                             <td>
                                 <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar {% if om.completion_percentage == 100 %}bg-success{% elif om.completion_percentage > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                    <div class="progress-bar {% if om.completion_percentage == 100 %}bg-success{% elif om.completion_percentage > 0 %}bg-warning{% else %}bg-danger{% endif %} {% if om.completion_percentage < 100 %}text-dark{% endif %}" 
                                          role="progressbar" 
                                          style="width: {{ om.completion_percentage }}%"
                                          aria-valuenow="{{ om.completion_percentage }}" 
