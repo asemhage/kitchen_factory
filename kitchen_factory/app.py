@@ -27,6 +27,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
+# الأدوار المسموح لها بإدارة المواد والمخزون
+MATERIAL_MANAGEMENT_ROLES = ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']
+
 # إضافة datetime إلى سياق القوالب
 @app.context_processor
 def inject_datetime():
@@ -4753,7 +4756,7 @@ def archived_orders():
 @login_required
 def materials():
     """عرض قائمة المواد - المخزن موحد لجميع الصالات"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية للوصول إلى صفحة المواد', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -4768,8 +4771,8 @@ def materials():
 @app.route('/material/new', methods=['GET', 'POST'])
 @login_required
 def new_material():
-    """إضافة مادة جديدة - مسؤول المخزن ومسؤول الإنتاج"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    """إضافة مادة جديدة - المدير ومسؤول المخزن ومسؤول العمليات"""
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لإضافة مادة جديدة', 'danger')
         return redirect(url_for('materials'))
 
@@ -4823,8 +4826,8 @@ def new_material():
 @app.route('/material/<int:material_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_material(material_id):
-    """تعديل مادة - مسؤول المخزن فقط"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    """تعديل مادة - المدير ومسؤول المخزن ومسؤول العمليات"""
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لتعديل المادة', 'danger')
         return redirect(url_for('materials'))
     
@@ -4882,9 +4885,9 @@ def delete_material(material_id):
 @app.route('/materials/add-stock', methods=['POST'])
 @login_required
 def add_stock():
-    """إضافة كمية لمادة - مسؤول المخزن فقط"""
+    """إضافة كمية لمادة - المدير ومسؤول المخزن ومسؤول العمليات"""
     try:
-        if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+        if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
             return jsonify({'success': False, 'message': 'ليس لديك صلاحية لإضافة مخزون'})
         
         material_id = request.form.get('material_id')
@@ -4926,8 +4929,8 @@ def add_stock():
 @app.route('/material/<int:material_id>/add_stock', methods=['GET', 'POST'])
 @login_required
 def add_material_stock(material_id):
-    """إضافة كمية لمادة محددة - مسؤول المخزن فقط"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    """إضافة كمية لمادة محددة - المدير ومسؤول المخزن ومسؤول العمليات"""
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لإضافة مخزون', 'danger')
         return redirect(url_for('materials'))
 
@@ -6023,7 +6026,7 @@ def order_materials(order_id):
     """صفحة إدارة المواد للطلبية - النظام المحدّث مع تتبع النقص"""
     order = db.get_or_404(Order, order_id)
 
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية للوصول إلى صفحة مواد الطلب', 'danger')
         return redirect(url_for('order_detail', order_id=order.id))
 
@@ -6145,7 +6148,7 @@ def delete_order_material(material_id):
     order_material = db.get_or_404(OrderMaterial, material_id)
     order_id = order_material.order_id
 
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لحذف مادة من الطلب', 'danger')
         return redirect(url_for('order_materials', order_id=order_id))
 
@@ -6175,7 +6178,7 @@ def update_order_material_quantity(material_id):
     """تعديل كمية مادة في الطلبية"""
     order_material = db.get_or_404(OrderMaterial, material_id)
     
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لتعديل المادة', 'danger')
         return redirect(url_for('order_materials', order_id=order_material.order_id))
     
@@ -6229,7 +6232,7 @@ def complete_material_shortage(material_id):
     """إكمال نقص مادة عند توفرها"""
     order_material = db.get_or_404(OrderMaterial, material_id)
     
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية لإكمال النقص', 'danger')
         return redirect(url_for('order_materials', order_id=order_material.order_id))
     
@@ -6288,7 +6291,7 @@ def complete_material_shortage(material_id):
 @login_required
 def shortage_materials_list():
     """قائمة بجميع المواد الناقصة في الطلبيات"""
-    if current_user.role not in ['مدير', 'مسؤول مخزن', 'مسؤول العمليات']:
+    if current_user.role not in MATERIAL_MANAGEMENT_ROLES:
         flash('ليس لديك صلاحية للوصول', 'danger')
         return redirect(url_for('dashboard'))
     
