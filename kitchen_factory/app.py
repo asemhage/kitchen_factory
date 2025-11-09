@@ -4295,6 +4295,226 @@ def update_receipt_settings():
         flash(f'حدث خطأ أثناء تحديث إعدادات الإيصال: {str(e)}', 'danger')
         return redirect(url_for('admin_tools'))
 
+
+@app.route('/admin/warehouses')
+@login_required
+def admin_warehouses():
+    """عرض قائمة المخازن من أدوات المشرف"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لإدارة المخازن', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    warehouses = Warehouse.query.order_by(Warehouse.is_active.desc(), Warehouse.name.asc()).all()
+    active_count = sum(1 for wh in warehouses if wh.is_active)
+    inactive_count = len(warehouses) - active_count
+    default_warehouse = Warehouse.query.filter_by(is_default=True).first()
+    
+    return render_template(
+        'admin_warehouses.html',
+        warehouses=warehouses,
+        active_count=active_count,
+        inactive_count=inactive_count,
+        default_warehouse=default_warehouse
+    )
+
+
+@app.route('/admin/warehouses/new', methods=['GET', 'POST'])
+@login_required
+def admin_new_warehouse():
+    """إنشاء مخزن جديد"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لإضافة مخزن', 'danger')
+        return redirect(url_for('admin_warehouses'))
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        code = request.form.get('code', '').strip() or None
+        location = request.form.get('location')
+        description = request.form.get('description')
+        capacity = request.form.get('capacity')
+        manager_name = request.form.get('manager_name')
+        phone = request.form.get('phone')
+        notes = request.form.get('notes')
+        is_active = bool(request.form.get('is_active'))
+        is_default = bool(request.form.get('is_default'))
+        
+        if not name:
+            flash('اسم المخزن مطلوب', 'danger')
+            return render_template('admin_warehouse_form.html', mode='create')
+        
+        if code:
+            existing_code = Warehouse.query.filter(Warehouse.code == code).first()
+            if existing_code:
+                flash('كود المخزن مستخدم بالفعل', 'danger')
+                return render_template('admin_warehouse_form.html', mode='create')
+        
+        warehouse = Warehouse(
+            name=name,
+            code=code,
+            location=location,
+            description=description,
+            capacity=float(capacity) if capacity else None,
+            manager_name=manager_name,
+            phone=phone,
+            notes=notes,
+            is_active=is_active,
+            is_default=is_default,
+            created_by=current_user.username
+        )
+        
+        if is_default:
+            Warehouse.query.filter(Warehouse.is_default == True).update({'is_default': False})
+        elif Warehouse.query.filter(Warehouse.is_default == True).count() == 0:
+            warehouse.is_default = True
+        
+        db.session.add(warehouse)
+        db.session.commit()
+        
+        log_change('warehouses', warehouse.id, 'create', new_val=f'{warehouse.name}')
+        flash('تم إنشاء المخزن بنجاح', 'success')
+        return redirect(url_for('admin_warehouses'))
+    
+    return render_template('admin_warehouse_form.html', mode='create')
+
+
+@app.route('/admin/warehouses/<int:warehouse_id>/edit', methods=['GET', 'POST'])
+@login_required
+def admin_edit_warehouse(warehouse_id):
+    """تعديل بيانات مخزن"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لتعديل المخازن', 'danger')
+        return redirect(url_for('admin_warehouses'))
+    
+    warehouse = db.get_or_404(Warehouse, warehouse_id)
+    
+    if request.method == 'POST':
+        old_values = {
+            'name': warehouse.name,
+            'code': warehouse.code,
+            'location': warehouse.location,
+            'description': warehouse.description,
+            'capacity': warehouse.capacity,
+            'manager_name': warehouse.manager_name,
+            'phone': warehouse.phone,
+            'notes': warehouse.notes,
+            'is_active': warehouse.is_active,
+            'is_default': warehouse.is_default,
+        }
+        
+        name = request.form.get('name', '').strip()
+        code = request.form.get('code', '').strip() or None
+        location = request.form.get('location')
+        description = request.form.get('description')
+        capacity = request.form.get('capacity')
+        manager_name = request.form.get('manager_name')
+        phone = request.form.get('phone')
+        notes = request.form.get('notes')
+        is_active = bool(request.form.get('is_active'))
+        is_default = bool(request.form.get('is_default'))
+        
+        if not name:
+            flash('اسم المخزن مطلوب', 'danger')
+            return render_template('admin_warehouse_form.html', mode='edit', warehouse=warehouse)
+        
+        if code:
+            existing_code = Warehouse.query.filter(
+                Warehouse.code == code,
+                Warehouse.id != warehouse.id
+            ).first()
+            if existing_code:
+                flash('كود المخزن مستخدم بالفعل', 'danger')
+                return render_template('admin_warehouse_form.html', mode='edit', warehouse=warehouse)
+        
+        warehouse.name = name
+        warehouse.code = code
+        warehouse.location = location
+        warehouse.description = description
+        warehouse.capacity = float(capacity) if capacity else None
+        warehouse.manager_name = manager_name
+        warehouse.phone = phone
+        warehouse.notes = notes
+        warehouse.is_active = is_active
+        warehouse.is_default = is_default
+        warehouse.updated_at = datetime.now(timezone.utc)
+        
+        if warehouse.is_default:
+            Warehouse.query.filter(Warehouse.id != warehouse.id, Warehouse.is_default == True).update({'is_default': False})
+        else:
+            default_count = Warehouse.query.filter(Warehouse.is_default == True, Warehouse.id != warehouse.id).count()
+            if default_count == 0:
+                warehouse.is_default = True
+                flash('لا يمكن إزالة المخزن الافتراضي الوحيد. تم إبقاء هذا المخزن افتراضياً.', 'warning')
+        
+        db.session.commit()
+        log_change('warehouses', warehouse.id, 'update', old_val=str(old_values), new_val=str({
+            'name': warehouse.name,
+            'code': warehouse.code,
+            'location': warehouse.location,
+            'description': warehouse.description,
+            'capacity': warehouse.capacity,
+            'manager_name': warehouse.manager_name,
+            'phone': warehouse.phone,
+            'notes': warehouse.notes,
+            'is_active': warehouse.is_active,
+            'is_default': warehouse.is_default,
+        }))
+        flash('تم تحديث بيانات المخزن', 'success')
+        return redirect(url_for('admin_warehouses'))
+    
+    return render_template('admin_warehouse_form.html', mode='edit', warehouse=warehouse)
+
+
+@app.route('/admin/warehouses/<int:warehouse_id>/toggle', methods=['POST'])
+@login_required
+def admin_toggle_warehouse(warehouse_id):
+    """تغيير حالة المخزن (تفعيل/تعطيل)"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لتعديل حالة المخزن', 'danger')
+        return redirect(url_for('admin_warehouses'))
+    
+    warehouse = db.get_or_404(Warehouse, warehouse_id)
+    
+    if warehouse.is_default and warehouse.is_active:
+        other_active = Warehouse.query.filter(Warehouse.id != warehouse.id, Warehouse.is_active == True).count()
+        if other_active == 0:
+            flash('لا يمكن تعطيل المخزن الافتراضي الوحيد. قم بتعيين مخزن افتراضي آخر أولاً.', 'danger')
+            return redirect(url_for('admin_warehouses'))
+    
+    previous_state = warehouse.is_active
+    warehouse.is_active = not warehouse.is_active
+    
+    if not warehouse.is_active and warehouse.is_default:
+        warehouse.is_default = False
+        replacement = Warehouse.query.filter(Warehouse.id != warehouse.id, Warehouse.is_active == True).first()
+        if replacement:
+            replacement.is_default = True
+    
+    db.session.commit()
+    status_text = 'تفعيل' if warehouse.is_active else 'تعطيل'
+    log_change('warehouses', warehouse.id, 'update', field='is_active', old_val=previous_state, new_val=warehouse.is_active, notes=status_text)
+    flash(f'تم {status_text} المخزن {warehouse.name}', 'success')
+    return redirect(url_for('admin_warehouses'))
+
+
+@app.route('/admin/warehouses/<int:warehouse_id>/set-default', methods=['POST'])
+@login_required
+def admin_set_default_warehouse(warehouse_id):
+    """تعيين مخزن افتراضي"""
+    if current_user.role != 'مدير':
+        flash('ليس لديك صلاحية لتعيين المخزن الافتراضي', 'danger')
+        return redirect(url_for('admin_warehouses'))
+    
+    warehouse = db.get_or_404(Warehouse, warehouse_id)
+    
+    Warehouse.query.filter(Warehouse.is_default == True).update({'is_default': False})
+    warehouse.is_default = True
+    warehouse.is_active = True
+    
+    db.session.commit()
+    log_change('warehouses', warehouse.id, 'update', field='is_default', old_val=False, new_val=True, notes='تعيين كمخزن افتراضي')
+    flash(f'تم تعيين المخزن {warehouse.name} كمخزن افتراضي', 'success')
+    return redirect(url_for('admin_warehouses'))
+
 @app.route('/order/<int:order_id>/edit', methods=['GET', 'POST'])
 @login_required
 @require_showroom_access
@@ -6274,11 +6494,17 @@ if __name__ == '__main__':
                 })
 
         receipt_page_size = get_setting('receipt_page_size', 'A4')
+        active_warehouses = Warehouse.query.filter_by(is_active=True).count()
+        inactive_warehouses = Warehouse.query.filter_by(is_active=False).count()
+        default_warehouse = Warehouse.query.filter_by(is_default=True).first()
 
         return render_template(
             'admin_tools.html',
             backup_info=backup_info,
-            receipt_page_size=receipt_page_size
+            receipt_page_size=receipt_page_size,
+            active_warehouses=active_warehouses,
+            inactive_warehouses=inactive_warehouses,
+            default_warehouse=default_warehouse
         )
 
     @app.route('/admin/reset-all-data', methods=['POST'])

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة المخازن - أدوات المشرف{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">إدارة المخازن</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('admin_tools') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right"></i> العودة لأدوات المشرف
+            </a>
+            <a href="{{ url_for('admin_new_warehouse') }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> مخزن جديد
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h6 class="text-muted">المخازن المفعّلة</h6>
+                <div class="fs-4 text-success">{{ active_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-secondary">
+            <div class="card-body text-center">
+                <h6 class="text-muted">المخازن المعطّلة</h6>
+                <div class="fs-4 text-secondary">{{ inactive_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h6 class="text-muted">المخزن الافتراضي</h6>
+                {% if default_warehouse %}
+                <div class="fs-5 text-info">{{ default_warehouse.name }}</div>
+                <small class="text-muted">{{ default_warehouse.code or default_warehouse.location or '' }}</small>
+                {% else %}
+                <div class="fs-5 text-danger">لم يتم تعيين مخزن افتراضي</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-warehouse"></i> قائمة المخازن</h5>
+    </div>
+    <div class="card-body">
+        {% if warehouses %}
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>الاسم</th>
+                        <th>الكود</th>
+                        <th>العنوان</th>
+                        <th>الحالة</th>
+                        <th>الافتراضي</th>
+                        <th>المسؤول</th>
+                        <th>السعة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for warehouse in warehouses %}
+                    <tr class="{% if not warehouse.is_active %}table-secondary{% endif %}">
+                        <td>
+                            <strong>{{ warehouse.name }}</strong>
+                            {% if warehouse.notes %}
+                            <div class="small text-muted">{{ warehouse.notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ warehouse.code or '-' }}</td>
+                        <td>{{ warehouse.location or '-' }}</td>
+                        <td>
+                            {% if warehouse.is_active %}
+                                <span class="badge bg-success">مفعل</span>
+                            {% else %}
+                                <span class="badge bg-secondary">معطّل</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if warehouse.is_default %}
+                                <span class="badge bg-info text-dark">الافتراضي</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ warehouse.manager_name or '-' }}</td>
+                        <td>
+                            {% if warehouse.capacity %}
+                                {{ warehouse.capacity }} وحدة
+                            {% else %}
+                                <span class="text-muted">غير محدد</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('admin_edit_warehouse', warehouse_id=warehouse.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin_toggle_warehouse', warehouse_id=warehouse.id) }}" class="d-inline" onsubmit="return confirm('هل أنت متأكد من تغيير حالة هذا المخزن؟');">
+                                    <button type="submit" class="btn btn-outline-secondary">
+                                        {% if warehouse.is_active %}
+                                        <i class="fas fa-pause-circle"></i>
+                                        {% else %}
+                                        <i class="fas fa-play-circle"></i>
+                                        {% endif %}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin_set_default_warehouse', warehouse_id=warehouse.id) }}" class="d-inline" onsubmit="return confirm('تعيين هذا المخزن كمخزن افتراضي؟');">
+                                    <button type="submit" class="btn btn-outline-info" {% if warehouse.is_default %}disabled{% endif %}>
+                                        <i class="fas fa-star"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            لا توجد مخازن مسجلة بعد. قم بإنشاء مخزن جديد ليتمكن النظام من إدارة المواد.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

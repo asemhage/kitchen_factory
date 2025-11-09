@@ -74,6 +74,33 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">إدارة المخازن</h5>
+            </div>
+            <div class="card-body">
+                <p>إدارة المخازن النشطة وتعيين المخزن الافتراضي. يجب توفر مخزن واحد على الأقل لتسجيل المواد.</p>
+                <ul class="list-unstyled mb-3">
+                    <li><i class="fas fa-check text-success"></i> المخازن المفعّلة: <strong>{{ active_warehouses }}</strong></li>
+                    <li><i class="fas fa-ban text-secondary"></i> المخازن المعطّلة: <strong>{{ inactive_warehouses }}</strong></li>
+                    <li>
+                        <i class="fas fa-star text-info"></i>
+                        المخزن الافتراضي:
+                        {% if default_warehouse %}
+                            <strong>{{ default_warehouse.name }}</strong>
+                        {% else %}
+                            <span class="text-danger">غير محدد</span>
+                        {% endif %}
+                    </li>
+                </ul>
+                <a href="{{ url_for('admin_warehouses') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-warehouse"></i> إدارة المخازن
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% if backup_info %}
