@@ -345,8 +345,17 @@
                                                 </div>
                                                 
                                                 <div class="mb-3">
-                                                    <label for="assigned_to_start_{{ stage.id }}" class="form-label">المسؤول</label>
-                                                    <input type="text" class="form-control" id="assigned_to_start_{{ stage.id }}" name="assigned_to" value="{{ stage.assigned_to or '' }}" required>
+                                                    <label class="form-label">المسؤول</label>
+                                                    <input type="text"
+                                                           class="form-control"
+                                                           value="{{ current_user.username }}"
+                                                           readonly>
+                                                    <input type="hidden"
+                                                           name="assigned_to"
+                                                           value="{{ current_user.username }}">
+                                                    <div class="form-text text-muted">
+                                                        يتم تعيين مسؤول المرحلة تلقائياً للمستخدم الحالي (مدير/مسؤول تشغيل/مسؤول إنتاج).
+                                                    </div>
                                                 </div>
                                                 {% else %}
                                                 <!-- المراحل العادية الأخرى -->

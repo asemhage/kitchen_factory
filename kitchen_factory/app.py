@@ -3043,15 +3043,18 @@ def update_order_stage(order_id, stage_id):
             
             # معالجة خاصة لمرحلة حصر المتطلبات: تحديث الأمتار - مضاف 2025-10-19
             if stage.stage_name == 'حصر المتطلبات':
-                # فقط الأدوار التالية يمكنها تحديث الأمتار
                 if current_user.role in ['مدير', 'مسؤول إنتاج', 'مسؤول العمليات']:
                     meters = request.form.get('meters')
                     if meters:
                         old_meters = order.meters
                         order.meters = float(meters)
                         flash(f'تم تحديث عدد الأمتار من {old_meters} إلى {meters}', 'info')
+                    stage.assigned_to = current_user.username
+                else:
+                    flash('ليس لديك صلاحية لبدء مرحلة حصر المتطلبات', 'danger')
+                    return redirect(url_for('order_stages', order_id=order_id))
                 
-                flash(f'تم بدء مرحلة {stage.stage_name}', 'success')
+                flash(f'تم بدء مرحلة {stage.stage_name} وتعيين المسؤول {stage.assigned_to}', 'success')
             
             # معالجة خاصة لمراحل التصنيع والتركيب - مضاف 2025-10-18
             elif stage.stage_name in ['التصنيع', 'التركيب']:
