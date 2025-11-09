@@ -3483,7 +3483,7 @@ def number_to_arabic_words(number):
     # للأرقام الأكبر، استخدم التنسيق العددي
     return str(int(number))
 
-def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
+def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None, payments_history=None):
     """إنشاء إيصال قبض PDF بالتصميم الجديد - مضاف 2025-10-19"""
     buffer = io.BytesIO()
     
@@ -3586,6 +3586,17 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
     p.setFillColorRGB(0, 0, 0)  # العودة للون الأسود
     y_position -= 3*cm
     
+    # تجهيز سجل الدفعات لعرضه لاحقاً
+    if payments_history is None:
+        payments_history = list(order.payments)
+    payments_history = sorted(
+        payments_history,
+        key=lambda pay: (
+            pay.payment_date or datetime.now().date(),
+            pay.id or 0
+        )
+    )
+
     # ========== 4. تفاصيل الدفع ==========
     # صندوق تفاصيل الدفع
     p.setFillColorRGB(0.97, 0.97, 0.97)
@@ -3672,9 +3683,76 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
     
     y_position -= 6*cm
     
-    # ========== 5. باقي القيمة ==========
-    # حساب باقي القيمة
-    total_paid = sum(p.amount for p in order.payments)
+    # ========== 5. ملخص المدفوعات ==========
+    if payments_history:
+        summary_top = y_position
+        title_gap = 0.9 * cm
+        header_gap = 0.6 * cm
+        row_height = 0.7 * cm
+        footer_gap = 2.4 * cm
+        rows_count = len(payments_history)
+        summary_box_height = title_gap + header_gap + rows_count * row_height + footer_gap
+
+        p.setFillColorRGB(0.97, 0.97, 0.97)
+        p.rect(2 * cm, summary_top - summary_box_height, width - 4 * cm, summary_box_height, fill=1, stroke=1)
+        p.setFillColorRGB(0, 0, 0)
+
+        # عنوان الملخص
+        p.setFont(font_name, 13)
+        p.drawCentredString(width / 2, summary_top - 0.55 * cm, format_arabic_text("ملخص المدفوعات"))
+
+        # رؤوس الأعمدة
+        header_y = summary_top - title_gap
+        p.setFont(font_name, 11)
+        p.drawString(3 * cm, header_y, format_arabic_text("م"))
+        p.drawString(4.2 * cm, header_y, format_arabic_text("البيان"))
+        p.drawCentredString(width / 2, header_y, format_arabic_text("التاريخ"))
+        p.drawRightString(width - 3 * cm, header_y, format_arabic_text("المبلغ (د.ل)"))
+
+        p.line(2 * cm, header_y - 0.2 * cm, width - 2 * cm, header_y - 0.2 * cm)
+
+        # صفوف الدفعات
+        deposit_total = 0.0
+        p.setFont(font_name, 10)
+        row_y = header_y - row_height
+        for idx, pay_row in enumerate(payments_history, start=1):
+            payment_type_label = format_arabic_text(pay_row.payment_type or 'دفعة')
+            date_display = pay_row.payment_date.strftime('%Y-%m-%d') if hasattr(pay_row.payment_date, 'strftime') else str(pay_row.payment_date)
+            amount_display = f"{pay_row.amount:.2f}"
+
+            if (pay_row.payment_type or '').strip() == 'عربون':
+                deposit_total += pay_row.amount
+
+            p.drawString(3 * cm, row_y, str(idx))
+            p.drawString(4.2 * cm, row_y, payment_type_label)
+            p.drawCentredString(width / 2, row_y, date_display)
+            p.drawRightString(width - 3 * cm, row_y, amount_display)
+            row_y -= row_height
+
+        total_paid_summary = sum(pay_row.amount for pay_row in payments_history)
+        other_payments_total = total_paid_summary - deposit_total
+
+        p.line(2 * cm, row_y + (row_height * 0.4), width - 2 * cm, row_y + (row_height * 0.4))
+
+        totals_y = row_y - 0.1 * cm
+        p.setFont(font_name, 10)
+        p.drawString(4.2 * cm, totals_y, format_arabic_text("الإجمالي"))
+        p.drawRightString(width - 3 * cm, totals_y, f"{total_paid_summary:.2f}")
+
+        info_y = totals_y - 0.7 * cm
+        p.setFont(font_name, 9)
+        p.drawString(3 * cm, info_y, format_arabic_text(f"إجمالي العربون: {deposit_total:.2f} د.ل"))
+        p.drawString(3 * cm, info_y - 0.6 * cm, format_arabic_text(f"إجمالي الدفعات الأخرى: {other_payments_total:.2f} د.ل"))
+        p.drawString(3 * cm, info_y - 1.2 * cm, format_arabic_text(f"إجمالي المدفوع: {total_paid_summary:.2f} د.ل"))
+
+        y_position = summary_top - summary_box_height - 1 * cm
+    else:
+        total_paid_summary = payment.amount
+        deposit_total = payment.amount if (payment.payment_type or '').strip() == 'عربون' else 0.0
+
+    # ========== 6. باقي القيمة ==========
+    payments_for_totals = payments_history if payments_history else order.payments
+    total_paid = sum(p.amount for p in payments_for_totals)
     remaining = order.total_value - total_paid
     
     # صندوق باقي القيمة
@@ -3710,7 +3788,7 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
     
     y_position -= 4*cm
     
-    # ========== 6. التوقيعات ==========
+    # ========== 7. التوقيعات ==========
     # صندوق التوقيعات
     p.setFillColorRGB(0.97, 0.97, 0.97)
     p.rect(2*cm, y_position - 3*cm, width - 4*cm, 3*cm, fill=1, stroke=1)
@@ -3740,7 +3818,7 @@ def generate_receipt_pdf_v2(order, payment, customer_name=None, page_size=None):
     # خط التوقيع
     p.line(4*cm, y_position - 2*cm, 4*cm + 4*cm, y_position - 2*cm)
     
-    # ========== 7. رقم الإيصال والملاحظات ==========
+    # ========== 8. رقم الإيصال والملاحظات ==========
     y_position -= 4*cm
     
     # رقم الإيصال
@@ -3843,11 +3921,14 @@ def receive_deposit(order_id):
         # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
         page_size = request.form.get('receipt_page_size') or get_setting('receipt_page_size', 'A4')
 
+        all_order_payments = Payment.query.filter_by(order_id=order.id).order_by(Payment.payment_date.asc(), Payment.id.asc()).all()
+
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
             customer_name=order.customer.name if order.customer else None,
-            page_size=page_size
+            page_size=page_size,
+            payments_history=all_order_payments
         )
         
         # حفظ PDF في مجلد uploads مؤقتاً
@@ -4151,11 +4232,14 @@ def add_payment(order_id):
         
         # إنشاء إيصال PDF بالتصميم الجديد - تم التحديث 2025-10-19
         page_size = request.form.get('receipt_page_size') or get_setting('receipt_page_size', 'A4')
+        all_order_payments = Payment.query.filter_by(order_id=order.id).order_by(Payment.payment_date.asc(), Payment.id.asc()).all()
+
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
             customer_name=order.customer.name if order.customer else None,
-            page_size=page_size
+            page_size=page_size,
+            payments_history=all_order_payments
         )
         
         # حفظ PDF في مجلد uploads لفتحه في نافذة جديدة وإجبار المتصفح على التحديث
@@ -4196,11 +4280,14 @@ def payment_receipt_v2(order_id, payment_id):
         
         # إنشاء PDF بالتصميم الجديد
         page_size = request.args.get('page_size') or get_setting('receipt_page_size', 'A4')
+        all_order_payments = Payment.query.filter_by(order_id=order.id).order_by(Payment.payment_date.asc(), Payment.id.asc()).all()
+
         receipt_pdf = generate_receipt_pdf_v2(
             order=order,
             payment=payment,
             customer_name=order.customer.name if order.customer else None,
-            page_size=page_size
+            page_size=page_size,
+            payments_history=all_order_payments
         )
         
         # إرسال الملف
